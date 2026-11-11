@@ -29,8 +29,10 @@ const BACKUP_FILE: &str = "chest-tracker-data.backup.json";
 
 #[derive(Default)]
 struct AppState {
-    /// Accelerator text -> action name, used to resolve a hotkey press.
-    shortcuts: HashMap<String, String>,
+    /// Parsed shortcut -> action name, used to resolve a hotkey press.
+    /// Keyed by `Shortcut` because its text form differs from the
+    /// accelerator the user typed ("CommandOrControl+Shift+1").
+    shortcuts: HashMap<Shortcut, String>,
     /// Closing the window hides it instead of quitting.
     close_to_tray: bool,
     /// Set while the app is really exiting, so the hide-on-close guard stops.
@@ -82,7 +84,7 @@ fn apply_shortcuts(
     }
 
     let mut results = Vec::with_capacity(bindings.len());
-    let mut taken: HashMap<String, String> = HashMap::new();
+    let mut taken: HashMap<Shortcut, String> = HashMap::new();
 
     for binding in bindings {
         if !binding.enabled {
@@ -91,17 +93,6 @@ fn apply_shortcuts(
                 accelerator: binding.accelerator,
                 registered: false,
                 error: None,
-            });
-            continue;
-        }
-
-        let key = binding.accelerator.to_lowercase();
-        if let Some(owner) = taken.get(&key) {
-            results.push(ShortcutResult {
-                action: binding.action,
-                accelerator: binding.accelerator.clone(),
-                registered: false,
-                error: Some(format!("the same combination is already used by \"{owner}\"")),
             });
             continue;
         }
@@ -119,13 +110,23 @@ fn apply_shortcuts(
             }
         };
 
+        // Two actions pointing at the same keys would make the second
+        // registration fail with a confusing OS error, so say it plainly.
+        if let Some(owner) = taken.get(&parsed) {
+            results.push(ShortcutResult {
+                action: binding.action,
+                accelerator: binding.accelerator.clone(),
+                registered: false,
+                error: Some(format!("the same combination is already used by \"{owner}\"")),
+            });
+            continue;
+        }
+
         match manager.register(parsed) {
             Ok(()) => {
-                taken.insert(key, binding.action.clone());
+                taken.insert(parsed, binding.action.clone());
                 if let Ok(mut guard) = state.lock() {
-                    guard
-                        .shortcuts
-                        .insert(binding.accelerator.to_lowercase(), binding.action.clone());
+                    guard.shortcuts.insert(parsed, binding.action.clone());
                 }
                 results.push(ShortcutResult {
                     action: binding.action,
@@ -431,15 +432,12 @@ pub fn run() {
                     if event.state() != ShortcutState::Pressed {
                         return;
                     }
-                    let accelerator = shortcut.into_string().to_lowercase();
-                    let action = app
-                        .try_state::<Mutex<AppState>>()
-                        .and_then(|state| {
-                            state
-                                .lock()
-                                .ok()
-                                .and_then(|guard| guard.shortcuts.get(&accelerator).cloned())
-                        });
+                    let action = app.try_state::<Mutex<AppState>>().and_then(|state| {
+                        state
+                            .lock()
+                            .ok()
+                            .and_then(|guard| guard.shortcuts.get(shortcut).cloned())
+                    });
                     if let Some(action) = action {
                         let _ = app.emit("chest-hotkey", serde_json::json!({ "action": action }));
                     }
