@@ -1,0 +1,408 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------
+   Design tokens. Every colour is a CSS variable so that themes and
+   accents can be swapped at runtime from the Settings page.
+   --------------------------------------------------------------- */
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #07060f;
+  --bg-glow-a: color-mix(in srgb, var(--accent) 26%, transparent);
+  --bg-glow-b: color-mix(in srgb, var(--accent-2) 22%, transparent);
+
+  --surface: #100d1d;
+  --surface-2: #171331;
+  --surface-3: #1f1a3d;
+  --border: #2a2350;
+  --border-strong: #3a3072;
+
+  --text: #f4f2ff;
+  --text-muted: #a69fcc;
+  --text-faint: #6f6895;
+
+  --gold: #fbbf24;
+  --success: #34d399;
+  --danger: #fb7185;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f4f2fb;
+  --bg-glow-a: color-mix(in srgb, var(--accent) 16%, transparent);
+  --bg-glow-b: color-mix(in srgb, var(--accent-2) 14%, transparent);
+
+  --surface: #ffffff;
+  --surface-2: #f6f4fe;
+  --surface-3: #ece8fb;
+  --border: #ded8f4;
+  --border-strong: #c6bdeb;
+
+  --text: #150f2e;
+  --text-muted: #574e7d;
+  --text-faint: #837aa8;
+
+  --gold: #b7791f;
+  --success: #059669;
+  --danger: #e11d48;
+}
+
+/* Accent presets, applied via data-accent on <html>. */
+:root,
+[data-accent='violet'] {
+  --accent: #8b5cf6;
+  --accent-2: #3b82f6;
+}
+[data-accent='azure'] {
+  --accent: #3b82f6;
+  --accent-2: #22d3ee;
+}
+[data-accent='gold'] {
+  --accent: #f59e0b;
+  --accent-2: #a855f7;
+}
+[data-accent='mint'] {
+  --accent: #10b981;
+  --accent-2: #3b82f6;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--text);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-gold: var(--gold);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Inter Tight', 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    overflow-x: hidden;
+  }
+
+  /* Ambient arena lighting behind the whole app. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(60rem 40rem at 12% -10%, var(--bg-glow-a), transparent 70%),
+      radial-gradient(50rem 36rem at 92% 4%, var(--bg-glow-b), transparent 70%),
+      radial-gradient(40rem 30rem at 50% 110%, color-mix(in srgb, var(--gold) 10%, transparent), transparent 70%);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}
+
+@layer components {
+  .card {
+    position: relative;
+    border-radius: 1.25rem;
+    border: 1px solid var(--border);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 90%, transparent), var(--surface));
+    box-shadow:
+      0 1px 0 0 color-mix(in srgb, #ffffff 6%, transparent) inset,
+      0 18px 40px -24px rgba(0, 0, 0, 0.75);
+  }
+
+  .card-hover {
+    transition:
+      transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+    box-shadow:
+      0 1px 0 0 color-mix(in srgb, #ffffff 8%, transparent) inset,
+      0 26px 50px -26px color-mix(in srgb, var(--accent) 35%, rgba(0, 0, 0, 0.8));
+  }
+
+  .label {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.875rem;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background 0.18s ease,
+      border-color 0.18s ease,
+      transform 0.12s ease,
+      color 0.18s ease;
+  }
+  .btn:hover:not(:disabled) {
+    background: var(--surface-3);
+    border-color: var(--border-strong);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    border-color: transparent;
+    background-image: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    box-shadow: 0 10px 30px -12px color-mix(in srgb, var(--accent) 70%, transparent);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-image: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent) 85%, #fff),
+      color-mix(in srgb, var(--accent-2) 85%, #fff)
+    );
+    border-color: transparent;
+  }
+
+  .btn-danger {
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 20%, transparent);
+    border-color: color-mix(in srgb, var(--danger) 60%, transparent);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--text-muted);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--surface-2);
+    color: var(--text);
+    border-color: var(--border);
+  }
+
+  .input {
+    width: 100%;
+    border-radius: 0.875rem;
+    border: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg) 55%, var(--surface));
+    color: var(--text);
+    padding: 0.625rem 0.875rem;
+    font-size: 0.9375rem;
+    transition: border-color 0.18s ease;
+  }
+  .input::placeholder {
+    color: var(--text-faint);
+  }
+  .input:focus {
+    border-color: var(--accent);
+    outline: none;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .hairline {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+}
+
+/* --- Animations ------------------------------------------------- */
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-pop {
+  animation: pop-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.8);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -5.5rem) scale(1.15);
+  }
+}
+.animate-rise {
+  animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes pulse-ring {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+.animate-ring {
+  animation: pulse-ring 0.7s ease-out forwards;
+}
+
+@keyframes count-bump {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.animate-bump {
+  animation: count-bump 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes slide-up-in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-slide-up {
+  animation: slide-up-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes live-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.animate-live {
+  animation: live-dot 1.8s ease-in-out infinite;
+}
+
+/* Honour both the OS setting and the in-app preference. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+[data-motion='off'] *,
+[data-motion='off'] *::before,
+[data-motion='off'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+
+/* Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
