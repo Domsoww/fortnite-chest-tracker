@@ -104,7 +104,9 @@ fn apply_shortcuts(
                     action: binding.action,
                     accelerator: binding.accelerator.clone(),
                     registered: false,
-                    error: Some(format!("Windows does not understand this combination ({err})")),
+                    error: Some(format!(
+                        "Windows does not understand this combination ({err})"
+                    )),
                 });
                 continue;
             }
@@ -117,7 +119,9 @@ fn apply_shortcuts(
                 action: binding.action,
                 accelerator: binding.accelerator.clone(),
                 registered: false,
-                error: Some(format!("the same combination is already used by \"{owner}\"")),
+                error: Some(format!(
+                    "the same combination is already used by \"{owner}\""
+                )),
             });
             continue;
         }
@@ -178,7 +182,11 @@ fn update_tray(app: AppHandle, info: TrayInfo) -> Result<(), String> {
     handles.session.set_text(session_line).map_err(err_text)?;
     handles
         .pause
-        .set_text(if info.paused { "Resume session" } else { "Pause session" })
+        .set_text(if info.paused {
+            "Resume session"
+        } else {
+            "Pause session"
+        })
         .map_err(err_text)?;
     handles.pause.set_enabled(info.running).map_err(err_text)?;
     handles
@@ -241,7 +249,10 @@ fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
 
 #[tauri::command]
 fn data_file_path(app: AppHandle) -> Result<String, String> {
-    Ok(data_dir(&app)?.join(DATA_FILE).to_string_lossy().to_string())
+    Ok(data_dir(&app)?
+        .join(DATA_FILE)
+        .to_string_lossy()
+        .to_string())
 }
 
 #[tauri::command]
@@ -361,15 +372,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(
         app,
         &[
-            &open,
-            &sep1,
-            &session,
-            &start,
-            &pause,
-            &end,
-            &sep2,
-            &shortcuts,
-            &quit,
+            &open, &sep1, &session, &start, &pause, &end, &sep2, &shortcuts, &quit,
         ],
     )?;
 

@@ -55,11 +55,24 @@ export function Counter({
   const floatId = useRef(0)
   const editInput = useRef<HTMLInputElement>(null)
 
-  // Live session clock. It stops while the session is paused.
+  // Live session clock. It stops while the session is paused, and also while
+  // the window is hidden — in the tray there is nobody to read it, and the
+  // desktop build should stay close to idle during a match.
   useEffect(() => {
     if (!activeSession || paused) return
-    const timer = window.setInterval(() => setElapsed(Date.now()), 1000)
-    return () => window.clearInterval(timer)
+
+    let timer = 0
+    const start = () => {
+      window.clearInterval(timer)
+      setElapsed(Date.now())
+      if (!document.hidden) timer = window.setInterval(() => setElapsed(Date.now()), 1000)
+    }
+    start()
+    document.addEventListener('visibilitychange', start)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', start)
+    }
   }, [activeSession, paused])
 
   const volume = desktopSettings.soundVolume
