@@ -147,7 +147,10 @@ Installers are built by GitHub Actions, never committed to the repository.
    ```
 3. Publish a GitHub Release for that tag. The **Release** workflow builds the
    NSIS and MSI installers on a `windows-latest` runner and attaches them to
-   the release, then deploys the web build to GitHub Pages.
+   the release.
+
+The web version deploys separately: the **Pages** workflow publishes it to
+<https://domsoww.github.io/fortnite-chest-tracker/> on every push to `main`.
 
 `.github/workflows/ci.yml` runs on every push: a type-checked web build on
 Linux, and a full Windows installer build whose artifacts you can download from
