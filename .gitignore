@@ -38,3 +38,7 @@ coverage/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Tauri / Rust build output
+src-tauri/target/
+src-tauri/gen/schemas/

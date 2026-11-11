@@ -6,6 +6,8 @@ import { MiniBars } from '../components/MiniBars'
 import { EmptyState } from '../components/EmptyState'
 import { ProgressRing } from '../components/ProgressRing'
 import { PageHeader } from '../components/PageHeader'
+import { GamingModeCard } from '../components/GamingModeCard'
+import { isDesktop } from '../desktop/platform'
 import type { ConfirmOptions } from '../components/ConfirmDialog'
 import { useTracker } from '../state/tracker'
 import { dayRange, records, sessionCount, sessionDuration, streaks, totals } from '../lib/stats'
@@ -109,6 +111,8 @@ export function Dashboard({
               </div>
             </div>
           </Card>
+
+          {isDesktop ? <GamingModeCard onOpenSettings={() => onNavigate('settings')} /> : null}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <StatCard

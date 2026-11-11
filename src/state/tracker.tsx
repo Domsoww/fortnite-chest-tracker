@@ -9,23 +9,23 @@ import {
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
-import type { AppData, ChestEvent, Session, Settings } from '../types'
+import type { AppData, ChestEvent, DesktopSettings, Session, Settings } from '../types'
 import { createId } from '../lib/id'
-import { sessionCount } from '../lib/stats'
+import { isPaused, sessionCount } from '../lib/stats'
+import { emptyData, mergeData, type StorageStatus } from '../lib/storage'
 import {
-  clearStoredData,
-  emptyData,
-  loadData,
-  mergeData,
-  saveData,
-  type StorageStatus,
-} from '../lib/storage'
+  clearPersisted,
+  loadPersisted,
+  savePersisted,
+  type Backend,
+} from '../lib/persistence'
 
 /* ------------------------------------------------------------------ */
 /* Reducer                                                             */
 /* ------------------------------------------------------------------ */
 
 type Action =
+  | { type: 'hydrate'; data: AppData }
   | { type: 'add-chest'; ts: number }
   | { type: 'adjust'; delta: number; ts: number }
   | { type: 'set-count'; value: number; ts: number }
@@ -33,11 +33,13 @@ type Action =
   | { type: 'reset-session' }
   | { type: 'start-session'; name?: string; ts: number }
   | { type: 'end-session'; ts: number }
+  | { type: 'toggle-pause'; ts: number }
   | { type: 'rename-session'; id: string; name: string }
   | { type: 'delete-session'; id: string }
   | { type: 'restore-session'; session: Session; makeActive: boolean }
   | { type: 'delete-all-sessions' }
   | { type: 'update-settings'; patch: Partial<Settings> }
+  | { type: 'update-desktop-settings'; patch: Partial<DesktopSettings> }
   | { type: 'replace'; data: AppData }
   | { type: 'merge'; data: AppData }
 
@@ -49,7 +51,7 @@ function defaultSessionName(existing: Session[], ts: number): string {
 }
 
 function newSession(name: string, ts: number): Session {
-  return { id: createId(), name, startedAt: ts, endedAt: null, events: [] }
+  return { id: createId(), name, startedAt: ts, endedAt: null, events: [], pauses: [] }
 }
 
 function withActive(data: AppData, update: (s: Session) => Session): AppData {
@@ -58,6 +60,12 @@ function withActive(data: AppData, update: (s: Session) => Session): AppData {
     ...data,
     sessions: data.sessions.map((s) => (s.id === data.activeSessionId ? update(s) : s)),
   }
+}
+
+/** Close any pause that is still open, so time stops being discounted. */
+function resume(s: Session, ts: number): Session {
+  if (!s.pauses.some((p) => p.to === null)) return s
+  return { ...s, pauses: s.pauses.map((p) => (p.to === null ? { ...p, to: ts } : p)) }
 }
 
 function pushEvent(data: AppData, event: ChestEvent): AppData {
@@ -73,6 +81,9 @@ function pushEvent(data: AppData, event: ChestEvent): AppData {
 
 export function reducer(data: AppData, action: Action): AppData {
   switch (action.type) {
+    case 'hydrate':
+      return action.data
+
     case 'add-chest':
       return pushEvent(data, { id: createId(), ts: action.ts, delta: 1, kind: 'chest' })
 
@@ -112,15 +123,22 @@ export function reducer(data: AppData, action: Action): AppData {
       const session = newSession(name.slice(0, 80), action.ts)
       // Close any session that was somehow left open.
       const sessions = data.sessions.map((s) =>
-        s.endedAt === null ? { ...s, endedAt: action.ts } : s,
+        s.endedAt === null ? { ...resume(s, action.ts), endedAt: action.ts } : s,
       )
       return { ...data, sessions: [session, ...sessions], activeSessionId: session.id }
     }
 
     case 'end-session': {
       if (!data.activeSessionId) return data
-      const closed = withActive(data, (s) => ({ ...s, endedAt: action.ts }))
+      const closed = withActive(data, (s) => ({ ...resume(s, action.ts), endedAt: action.ts }))
       return { ...closed, activeSessionId: null }
+    }
+
+    case 'toggle-pause': {
+      if (!data.activeSessionId) return data
+      return withActive(data, (s) =>
+        isPaused(s) ? resume(s, action.ts) : { ...s, pauses: [...s.pauses, { from: action.ts, to: null }] },
+      )
     }
 
     case 'rename-session': {
@@ -154,6 +172,12 @@ export function reducer(data: AppData, action: Action): AppData {
     case 'update-settings':
       return { ...data, settings: { ...data.settings, ...action.patch } }
 
+    case 'update-desktop-settings':
+      return {
+        ...data,
+        settings: { ...data.settings, desktop: { ...data.settings.desktop, ...action.patch } },
+      }
+
     case 'replace':
       return action.data
 
@@ -169,28 +193,38 @@ export function reducer(data: AppData, action: Action): AppData {
 /* Context                                                             */
 /* ------------------------------------------------------------------ */
 
+export type CountOutcome = 'counted' | 'paused' | 'nothing-to-undo'
+
 interface TrackerApi {
   data: AppData
   settings: Settings
+  desktopSettings: DesktopSettings
   activeSession: Session | null
   count: number
+  paused: boolean
   canUndo: boolean
+  /** False until saved data has been read back; nothing is written before then. */
+  hydrated: boolean
   storageStatus: StorageStatus
+  storageBackend: Backend
   loadWarnings: string[]
   dismissLoadWarnings: () => void
 
-  addChest: () => void
-  adjust: (delta: number) => void
+  /** Returns what actually happened, so callers can give honest feedback. */
+  addChest: () => CountOutcome
+  adjust: (delta: number) => CountOutcome
   setCount: (value: number) => void
-  undo: () => void
+  undo: () => CountOutcome
   resetSession: () => void
   startSession: (name?: string) => void
   endSession: () => void
+  togglePause: () => 'paused' | 'resumed' | 'no-session'
   renameSession: (id: string, name: string) => void
   deleteSession: (id: string) => Session | null
   restoreSession: (session: Session, makeActive: boolean) => void
   deleteAllSessions: () => void
   updateSettings: (patch: Partial<Settings>) => void
+  updateDesktopSettings: (patch: Partial<DesktopSettings>) => void
   replaceData: (data: AppData) => void
   mergeImport: (data: AppData) => void
   resetEverything: () => void
@@ -198,30 +232,55 @@ interface TrackerApi {
 
 const TrackerContext = createContext<TrackerApi | null>(null)
 
-const initial = loadData()
-
 export function TrackerProvider({ children }: { children: ReactNode }) {
-  const [data, dispatch] = useReducer(reducer, initial.data)
-  const [storageStatus, setStorageStatus] = useState<StorageStatus>(initial.status)
-  const [loadWarnings, setLoadWarnings] = useState<string[]>(initial.warnings)
+  const [data, dispatch] = useReducer(reducer, emptyData())
+  const [hydrated, setHydrated] = useState(false)
+  const [storageStatus, setStorageStatus] = useState<StorageStatus>('ok')
+  const [storageBackend, setStorageBackend] = useState<Backend>('browser')
+  const [loadWarnings, setLoadWarnings] = useState<string[]>([])
   const dataRef = useRef(data)
   dataRef.current = data
+  const hydratedRef = useRef(false)
 
-  // Persist on every change. localStorage writes are synchronous, so this is
-  // debounced to keep rapid +1 clicks smooth.
+  // Read saved data once. The desktop backend is asynchronous, so the UI
+  // renders a short splash rather than flashing an empty dashboard.
   useEffect(() => {
-    if (storageStatus === 'unavailable') return
+    let cancelled = false
+    void (async () => {
+      const result = await loadPersisted()
+      if (cancelled) return
+      dispatch({ type: 'hydrate', data: result.data })
+      setStorageStatus(result.status)
+      setStorageBackend(result.backend)
+      setLoadWarnings(
+        result.migratedFromBrowser
+          ? [...result.warnings, 'Existing data from this app was moved into the desktop data file.']
+          : result.warnings,
+      )
+      hydratedRef.current = true
+      setHydrated(true)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Persist on every change, debounced so rapid hotkey presses stay smooth.
+  // Nothing is ever written before hydration, which would erase saved data.
+  useEffect(() => {
+    if (!hydrated || storageStatus === 'unavailable') return
     const timer = window.setTimeout(() => {
-      const status = saveData(data)
-      setStorageStatus((prev) => (prev === status ? prev : status))
+      void savePersisted(data).then((status) => {
+        setStorageStatus((prev) => (prev === status ? prev : status))
+      })
     }, 120)
     return () => window.clearTimeout(timer)
-  }, [data, storageStatus])
+  }, [data, hydrated, storageStatus])
 
-  // A last write on the way out, in case the tab closes inside the debounce.
+  // A last write on the way out, in case the window closes inside the debounce.
   useEffect(() => {
     const flush = () => {
-      if (storageStatus !== 'unavailable') saveData(dataRef.current)
+      if (hydratedRef.current && storageStatus !== 'unavailable') void savePersisted(dataRef.current)
     }
     window.addEventListener('pagehide', flush)
     document.addEventListener('visibilitychange', flush)
@@ -238,6 +297,7 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
   )
 
   const count = activeSession ? sessionCount(activeSession) : 0
+  const paused = activeSession ? isPaused(activeSession) : false
 
   const deleteSession = useCallback<TrackerApi['deleteSession']>((id) => {
     const existing = dataRef.current.sessions.find((s) => s.id === id) ?? null
@@ -246,39 +306,100 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const resetEverything = useCallback(() => {
-    clearStoredData()
+    void clearPersisted()
     dispatch({ type: 'replace', data: emptyData() })
+  }, [])
+
+  // Counting refuses to run while the session is paused, and says so instead
+  // of silently dropping the press.
+  const isCurrentlyPaused = useCallback(() => {
+    const current = dataRef.current
+    const active = current.sessions.find((s) => s.id === current.activeSessionId)
+    return active ? isPaused(active) : false
+  }, [])
+
+  const addChest = useCallback<TrackerApi['addChest']>(() => {
+    if (isCurrentlyPaused()) return 'paused'
+    dispatch({ type: 'add-chest', ts: Date.now() })
+    return 'counted'
+  }, [isCurrentlyPaused])
+
+  const adjust = useCallback<TrackerApi['adjust']>(
+    (delta) => {
+      if (isCurrentlyPaused()) return 'paused'
+      dispatch({ type: 'adjust', delta, ts: Date.now() })
+      return 'counted'
+    },
+    [isCurrentlyPaused],
+  )
+
+  const undo = useCallback<TrackerApi['undo']>(() => {
+    const current = dataRef.current
+    const active = current.sessions.find((s) => s.id === current.activeSessionId)
+    if (!active || active.events.length === 0) return 'nothing-to-undo'
+    dispatch({ type: 'undo' })
+    return 'counted'
+  }, [])
+
+  const togglePause = useCallback<TrackerApi['togglePause']>(() => {
+    const current = dataRef.current
+    const active = current.sessions.find((s) => s.id === current.activeSessionId)
+    if (!active) return 'no-session'
+    const wasPaused = isPaused(active)
+    dispatch({ type: 'toggle-pause', ts: Date.now() })
+    return wasPaused ? 'resumed' : 'paused'
   }, [])
 
   const api = useMemo<TrackerApi>(
     () => ({
       data,
       settings: data.settings,
+      desktopSettings: data.settings.desktop,
       activeSession,
       count,
+      paused,
       canUndo: (activeSession?.events.length ?? 0) > 0,
+      hydrated,
       storageStatus,
+      storageBackend,
       loadWarnings,
       dismissLoadWarnings: () => setLoadWarnings([]),
 
-      addChest: () => dispatch({ type: 'add-chest', ts: Date.now() }),
-      adjust: (delta) => dispatch({ type: 'adjust', delta, ts: Date.now() }),
+      addChest,
+      adjust,
       setCount: (value) => dispatch({ type: 'set-count', value, ts: Date.now() }),
-      undo: () => dispatch({ type: 'undo' }),
+      undo,
       resetSession: () => dispatch({ type: 'reset-session' }),
       startSession: (name) => dispatch({ type: 'start-session', name, ts: Date.now() }),
       endSession: () => dispatch({ type: 'end-session', ts: Date.now() }),
+      togglePause,
       renameSession: (id, name) => dispatch({ type: 'rename-session', id, name }),
       deleteSession,
       restoreSession: (session, makeActive) =>
         dispatch({ type: 'restore-session', session, makeActive }),
       deleteAllSessions: () => dispatch({ type: 'delete-all-sessions' }),
       updateSettings: (patch) => dispatch({ type: 'update-settings', patch }),
+      updateDesktopSettings: (patch) => dispatch({ type: 'update-desktop-settings', patch }),
       replaceData: (next) => dispatch({ type: 'replace', data: next }),
       mergeImport: (next) => dispatch({ type: 'merge', data: next }),
       resetEverything,
     }),
-    [data, activeSession, count, storageStatus, loadWarnings, deleteSession, resetEverything],
+    [
+      data,
+      activeSession,
+      count,
+      paused,
+      hydrated,
+      storageStatus,
+      storageBackend,
+      loadWarnings,
+      addChest,
+      adjust,
+      undo,
+      togglePause,
+      deleteSession,
+      resetEverything,
+    ],
   )
 
   return <TrackerContext.Provider value={api}>{children}</TrackerContext.Provider>

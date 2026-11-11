@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Check,
   Minus,
+  Pause,
   Pencil,
   Play,
   Plus,
@@ -12,7 +13,7 @@ import {
 } from 'lucide-react'
 import { useTracker } from '../state/tracker'
 import { useToast } from '../state/toast'
-import { playChestSound } from '../lib/sound'
+import { playBlockedSound, playChestSound } from '../lib/sound'
 import { formatDuration, formatNumber, formatTime } from '../lib/format'
 import { sessionRate } from '../lib/stats'
 import type { ConfirmOptions } from './ConfirmDialog'
@@ -30,8 +31,10 @@ export function Counter({
   const {
     activeSession,
     count,
+    paused,
     canUndo,
     settings,
+    desktopSettings,
     addChest,
     adjust,
     setCount,
@@ -39,6 +42,7 @@ export function Counter({
     resetSession,
     startSession,
     endSession,
+    togglePause,
   } = useTracker()
   const { push } = useToast()
 
@@ -51,12 +55,14 @@ export function Counter({
   const floatId = useRef(0)
   const editInput = useRef<HTMLInputElement>(null)
 
-  // Live session clock.
+  // Live session clock. It stops while the session is paused.
   useEffect(() => {
-    if (!activeSession) return
+    if (!activeSession || paused) return
     const timer = window.setInterval(() => setElapsed(Date.now()), 1000)
     return () => window.clearInterval(timer)
-  }, [activeSession])
+  }, [activeSession, paused])
+
+  const volume = desktopSettings.soundVolume
 
   const spawnFeedback = useCallback(
     (text: string) => {
@@ -70,24 +76,35 @@ export function Counter({
           setRipples((list) => list.filter((r) => r !== id))
         }, 950)
       }
-      if (settings.sound) playChestSound()
+      if (settings.sound) playChestSound(volume)
     },
-    [settings.animations, settings.sound],
+    [settings.animations, settings.sound, volume],
   )
 
+  const warnPaused = useCallback(() => {
+    if (settings.sound) playBlockedSound(volume)
+    push('Session is paused — resume it to keep counting.', 'warning')
+  }, [push, settings.sound, volume])
+
   const handleAdd = useCallback(() => {
-    addChest()
-    spawnFeedback('+1')
-  }, [addChest, spawnFeedback])
+    if (addChest() === 'paused') warnPaused()
+    else spawnFeedback('+1')
+  }, [addChest, spawnFeedback, warnPaused])
 
   const handleAdjust = useCallback(
     (delta: number) => {
       if (delta < 0 && count === 0) return
-      adjust(delta)
-      spawnFeedback(delta > 0 ? `+${delta}` : `${delta}`)
+      if (adjust(delta) === 'paused') warnPaused()
+      else spawnFeedback(delta > 0 ? `+${delta}` : `${delta}`)
     },
-    [adjust, count, spawnFeedback],
+    [adjust, count, spawnFeedback, warnPaused],
   )
+
+  const handleTogglePause = useCallback(() => {
+    const outcome = togglePause()
+    if (outcome === 'no-session') push('No session is running.', 'info')
+    else push(outcome === 'paused' ? 'Session paused.' : 'Session resumed.', 'info')
+  }, [togglePause, push])
 
   // Space / Enter anywhere registers a chest, unless the player is typing.
   useEffect(() => {
@@ -104,7 +121,7 @@ export function Counter({
         return
       }
       if (e.metaKey || e.ctrlKey || e.altKey) {
-        if ((e.key === 'z' || e.key === 'Z') && canUndo) {
+        if ((e.key === 'z' || e.key === 'Z') && !e.shiftKey && canUndo) {
           e.preventDefault()
           undo()
           push('Last action undone.', 'info')
@@ -188,19 +205,25 @@ export function Counter({
 
       <div className="relative flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <span className="label">{activeSession ? 'Live session' : 'Session'}</span>
+          <span className="label">
+            {activeSession ? (paused ? 'Paused session' : 'Live session') : 'Session'}
+          </span>
           <p className="mt-1 truncate text-lg font-semibold text-ink">
             {activeSession ? activeSession.name : 'No session running'}
           </p>
         </div>
         {activeSession ? (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="chip border-success/40 text-success">
-              <span className="animate-live size-1.5 rounded-full bg-success" />
-              {formatDuration(elapsed - activeSession.startedAt)}
+            <span
+              className={`chip ${paused ? 'border-gold/40 text-gold' : 'border-success/40 text-success'}`}
+            >
+              <span
+                className={`size-1.5 rounded-full ${paused ? 'bg-gold' : 'animate-live bg-success'}`}
+              />
+              {paused ? 'Paused' : formatDuration(elapsed - activeSession.startedAt)}
             </span>
             <span className="chip">Started {formatTime(activeSession.startedAt)}</span>
-            {rate !== null ? <span className="chip">{Math.round(rate)} chests/h</span> : null}
+            {rate !== null && !paused ? <span className="chip">{Math.round(rate)} chests/h</span> : null}
           </div>
         ) : (
           <span className="chip">Press the button to begin</span>
@@ -252,7 +275,7 @@ export function Counter({
               key={bump}
               className={`tabular block bg-gradient-to-br from-[var(--text)] via-[var(--text)] to-[color-mix(in_srgb,var(--accent)_70%,var(--text))] bg-clip-text text-[clamp(4.5rem,18vw,8.5rem)] font-black leading-none text-transparent ${
                 settings.animations ? 'animate-bump' : ''
-              }`}
+              } ${paused ? 'opacity-60' : ''}`}
             >
               {formatNumber(count)}
             </span>
@@ -283,7 +306,9 @@ export function Counter({
           <button
             type="button"
             onClick={handleAdd}
-            className="btn btn-primary relative size-40 flex-col gap-1 rounded-full text-lg sm:size-48 sm:text-xl"
+            className={`btn btn-primary relative size-40 flex-col gap-1 rounded-full text-lg sm:size-48 sm:text-xl ${
+              paused ? 'opacity-60' : ''
+            }`}
             aria-label="Register one opened chest"
           >
             <Plus size={40} strokeWidth={3} />
@@ -329,9 +354,15 @@ export function Counter({
 
       <div className="flex flex-wrap items-center justify-center gap-2">
         {activeSession ? (
-          <button type="button" className="btn" onClick={handleEnd}>
-            <Square size={16} /> Finish session
-          </button>
+          <>
+            <button type="button" className="btn" onClick={handleTogglePause}>
+              {paused ? <Play size={16} /> : <Pause size={16} />}
+              {paused ? 'Resume session' : 'Pause session'}
+            </button>
+            <button type="button" className="btn" onClick={handleEnd}>
+              <Square size={16} /> Finish session
+            </button>
+          </>
         ) : (
           <button type="button" className="btn btn-primary" onClick={() => startSession()}>
             <Play size={16} /> Start a session
@@ -339,8 +370,9 @@ export function Counter({
         )}
         {activeSession ? (
           <p className="w-full text-center text-xs text-faint">
-            Finishing the session saves it to your history. A new one starts automatically the next
-            time you register a chest.
+            {paused
+              ? 'Paused time is left out of this session’s duration, and chests are not counted until you resume.'
+              : 'Finishing the session saves it to your history. A new one starts automatically the next time you register a chest.'}
           </p>
         ) : (
           <p className="w-full text-center text-xs text-faint">

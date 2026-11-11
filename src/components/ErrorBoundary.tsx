@@ -1,6 +1,7 @@
 import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 import { STORAGE_KEY } from '../lib/storage'
+import { isDesktop } from '../desktop/platform'
 
 interface State {
   error: Error | null
@@ -41,8 +42,11 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
         <div className="card max-w-lg p-7">
           <h1 className="text-xl font-bold text-ink">Something went wrong</h1>
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            The app hit an unexpected error while rendering. Your saved sessions are untouched in
-            this browser's local storage — reloading the page normally fixes it.
+            The app hit an unexpected error while rendering. Your saved sessions are untouched
+            {isDesktop
+              ? ' in the data file in your app-data folder'
+              : " in this browser's local storage"}{' '}
+            — restarting normally fixes it.
           </p>
           <pre className="mt-4 max-h-40 overflow-auto rounded-xl border border-line bg-surface-2 p-3 text-xs text-muted">
             {this.state.error.message}
@@ -51,9 +55,14 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
             <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
               Reload the app
             </button>
-            <button type="button" className="btn" onClick={this.downloadBackup}>
-              Download a data backup
-            </button>
+            {/* The browser build keeps its data in localStorage, so a copy can be
+                handed back here. The desktop build already has a real file plus a
+                backup on disk, and reads nothing useful from localStorage. */}
+            {!isDesktop ? (
+              <button type="button" className="btn" onClick={this.downloadBackup}>
+                Download a data backup
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
