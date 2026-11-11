@@ -3,6 +3,7 @@ import { ConfirmDialog } from './components/ConfirmDialog'
 import { useConfirm } from './components/useConfirm'
 import { AppShell } from './components/AppShell'
 import { Toaster } from './components/Toaster'
+import { Logo } from './components/Logo'
 import { Dashboard } from './pages/Dashboard'
 import { History } from './pages/History'
 import { Settings } from './pages/Settings'
@@ -19,7 +20,7 @@ const Statistics = lazy(() =>
 export function App() {
   const [route, navigate] = useHashRoute()
   const { confirm, dialogProps } = useConfirm()
-  const { settings, loadWarnings, dismissLoadWarnings, storageStatus } = useTracker()
+  const { settings, loadWarnings, dismissLoadWarnings, storageStatus, hydrated } = useTracker()
   const { push } = useToast()
 
   // Theme, accent and motion preference live on <html> so CSS can own the rest.
@@ -45,6 +46,10 @@ export function App() {
     }
   }, [storageStatus, push])
 
+  // Saved data is read asynchronously on the desktop, so hold the UI for that
+  // moment rather than flashing an empty dashboard over real statistics.
+  if (!hydrated) return <Splash />
+
   return (
     <>
       <AppShell route={route} onNavigate={navigate}>
@@ -69,6 +74,17 @@ function ChartsLoading() {
   return (
     <div className="card grid min-h-64 place-items-center p-10 text-sm text-muted">
       Loading charts…
+    </div>
+  )
+}
+
+function Splash() {
+  return (
+    <div className="grid min-h-dvh place-items-center">
+      <div className="flex flex-col items-center gap-3">
+        <Logo size={48} />
+        <p className="text-sm text-muted">Loading your sessions…</p>
+      </div>
     </div>
   )
 }

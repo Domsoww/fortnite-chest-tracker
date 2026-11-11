@@ -1,46 +1,68 @@
-/** A short synthesised "chest opened" blip. Generated with WebAudio so the
- *  app ships no audio assets and needs no network. */
-let ctx: AudioContext | null = null
+import chestSoundUrl from '../assets/chest.wav'
+import blockedSoundUrl from '../assets/blocked.wav'
 
-type AudioCtor = typeof AudioContext
+/** Short confirmation sounds. Both files are bundled with the app and were
+ *  generated for this project, so playback never needs the network. */
+export type SoundName = 'chest' | 'blocked'
 
-function getContext(): AudioContext | null {
-  if (typeof window === 'undefined') return null
-  const Ctor: AudioCtor | undefined =
-    window.AudioContext ?? (window as unknown as { webkitAudioContext?: AudioCtor }).webkitAudioContext
-  if (!Ctor) return null
-  try {
-    if (!ctx) ctx = new Ctor()
-    if (ctx.state === 'suspended') void ctx.resume()
-    return ctx
-  } catch {
-    return null
-  }
+const urls: Record<SoundName, string> = {
+  chest: chestSoundUrl,
+  blocked: blockedSoundUrl,
 }
 
-export function playChestSound(): void {
-  const audio = getContext()
-  if (!audio) return
-  try {
-    const now = audio.currentTime
-    const gain = audio.createGain()
-    gain.gain.setValueAtTime(0.0001, now)
-    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.015)
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22)
-    gain.connect(audio.destination)
+const pools = new Map<SoundName, HTMLAudioElement[]>()
+const POOL_SIZE = 4
 
-    for (const [freq, offset] of [
-      [880, 0],
-      [1320, 0.06],
-    ] as const) {
-      const osc = audio.createOscillator()
-      osc.type = 'triangle'
-      osc.frequency.setValueAtTime(freq, now + offset)
-      osc.connect(gain)
-      osc.start(now + offset)
-      osc.stop(now + offset + 0.16)
+function pool(name: SoundName): HTMLAudioElement[] {
+  let existing = pools.get(name)
+  if (!existing) {
+    // A small pool lets rapid presses overlap instead of cutting each other off.
+    existing = Array.from({ length: POOL_SIZE }, () => {
+      const audio = new Audio(urls[name])
+      audio.preload = 'auto'
+      return audio
+    })
+    pools.set(name, existing)
+  }
+  return existing
+}
+
+/** Warm the decoder so the first chest of a session is not late. */
+export function primeSounds(): void {
+  if (typeof Audio === 'undefined') return
+  try {
+    for (const name of Object.keys(urls) as SoundName[]) {
+      for (const audio of pool(name)) audio.load()
     }
   } catch {
     /* audio is a nicety, never a failure */
   }
+}
+
+/** Play one of the bundled sounds. `volume` is 0–1; 0 plays nothing. */
+export function playSound(name: SoundName, volume = 0.6): void {
+  if (typeof Audio === 'undefined') return
+  const level = Math.min(1, Math.max(0, volume))
+  if (level === 0) return
+  try {
+    const voices = pool(name)
+    const free = voices.find((a) => a.paused || a.ended) ?? voices[0]
+    free.volume = level
+    free.currentTime = 0
+    const played = free.play()
+    if (played && typeof played.catch === 'function') {
+      // Autoplay policies can reject before the first user gesture.
+      played.catch(() => undefined)
+    }
+  } catch {
+    /* audio is a nicety, never a failure */
+  }
+}
+
+export function playChestSound(volume = 0.6): void {
+  playSound('chest', volume)
+}
+
+export function playBlockedSound(volume = 0.6): void {
+  playSound('blocked', volume * 0.8)
 }

@@ -1,17 +1,65 @@
-import type { AppData, ChestEvent, ExportFile, Session, Settings } from '../types'
+import type {
+  AppData,
+  ChestEvent,
+  DesktopSettings,
+  ExportFile,
+  HotkeyAction,
+  HotkeyBinding,
+  HotkeyMap,
+  PauseSpan,
+  Session,
+  Settings,
+} from '../types'
 
 export const STORAGE_KEY = 'fortnite-chest-tracker:v1'
-export const SCHEMA_VERSION = 1
+/** v1 → v2 added session pauses and the desktop settings block. The key above
+ *  is deliberately unchanged so existing browser data is picked up and
+ *  migrated in place rather than orphaned. */
+export const SCHEMA_VERSION = 2
 export const APP_ID = 'fortnite-chest-tracker'
+/** File name used by the desktop build inside the app data directory. */
+export const DATA_FILE = 'chest-tracker-data.json'
+
+export const hotkeyActions: HotkeyAction[] = ['add', 'remove', 'undo', 'togglePause']
+
+export const hotkeyLabels: Record<HotkeyAction, string> = {
+  add: 'Add one chest',
+  remove: 'Remove one chest',
+  undo: 'Undo last action',
+  togglePause: 'Pause / resume session',
+}
+
+export function defaultHotkeys(): HotkeyMap {
+  return {
+    add: { accelerator: 'CommandOrControl+Shift+1', enabled: true },
+    remove: { accelerator: 'CommandOrControl+Shift+2', enabled: true },
+    undo: { accelerator: 'CommandOrControl+Shift+3', enabled: true },
+    togglePause: { accelerator: 'CommandOrControl+Shift+4', enabled: true },
+  }
+}
+
+export function defaultDesktopSettings(): DesktopSettings {
+  return {
+    globalShortcuts: true,
+    hotkeys: defaultHotkeys(),
+    minimizeToTray: true,
+    startWithWindows: false,
+    gamingMode: true,
+    soundVolume: 0.6,
+  }
+}
 
 export const defaultSettings: Settings = {
   theme: 'dark',
   accent: 'violet',
   confirmReset: true,
   animations: true,
-  sound: false,
+  // The desktop build counts chests while the window is hidden, so audible
+  // confirmation is on by default; the web build respects the same switch.
+  sound: true,
   hotkeys: true,
   dailyGoal: 50,
+  desktop: defaultDesktopSettings(),
 }
 
 export function emptyData(): AppData {
@@ -19,7 +67,7 @@ export function emptyData(): AppData {
     version: SCHEMA_VERSION,
     sessions: [],
     activeSessionId: null,
-    settings: { ...defaultSettings },
+    settings: { ...defaultSettings, desktop: defaultDesktopSettings() },
   }
 }
 
@@ -56,6 +104,23 @@ function parseEvent(raw: unknown, warnings: string[], where: string): ChestEvent
     delta,
     kind: raw.kind === 'adjust' ? 'adjust' : 'chest',
   }
+}
+
+function parsePauses(raw: unknown, warnings: string[], where: string): PauseSpan[] {
+  if (raw === undefined) return [] // v1 data simply had no pauses
+  if (!Array.isArray(raw)) {
+    warnings.push(`${where}: the pause list was not a list and was dropped.`)
+    return []
+  }
+  const spans: PauseSpan[] = []
+  for (const entry of raw) {
+    if (!isObj(entry) || !isFiniteNumber(entry.from)) continue
+    const from = Math.trunc(entry.from)
+    const to = isFiniteNumber(entry.to) ? Math.trunc(entry.to) : null
+    if (to !== null && to < from) continue
+    spans.push({ from, to })
+  }
+  return spans.sort((a, b) => a.from - b.from)
 }
 
 function parseSession(raw: unknown, index: number, warnings: string[]): Session | null {
@@ -96,18 +161,69 @@ function parseSession(raw: unknown, index: number, warnings: string[]): Session 
     endedAt = null
   }
 
+  const pauses = parsePauses(raw.pauses, warnings, where)
+  // A finished session can never still be paused.
+  if (endedAt !== null) {
+    for (const span of pauses) if (span.to === null) span.to = endedAt
+  }
+
   return {
     id: typeof raw.id === 'string' && raw.id ? raw.id : `${startedAt}-${index}`,
     name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim().slice(0, 80) : 'Session',
     startedAt,
     endedAt,
     events,
+    pauses,
   }
 }
 
+/** Accelerators are stored as text; keep only shapes the OS could accept. */
+function parseAccelerator(raw: unknown, fallback: string, warnings: string[]): string {
+  if (typeof raw !== 'string') return fallback
+  const value = raw.trim()
+  if (!value || value.length > 64 || !/^[A-Za-z0-9+ ]+$/.test(value)) {
+    warnings.push(`Shortcut "${String(raw).slice(0, 24)}" is not a valid combination, the default was used.`)
+    return fallback
+  }
+  return value
+}
+
+function parseHotkeys(raw: unknown, warnings: string[]): HotkeyMap {
+  const defaults = defaultHotkeys()
+  if (!isObj(raw)) return defaults
+  const out = {} as HotkeyMap
+  for (const action of hotkeyActions) {
+    const entry = raw[action]
+    const fallback = defaults[action]
+    if (!isObj(entry)) {
+      out[action] = fallback
+      continue
+    }
+    const binding: HotkeyBinding = {
+      accelerator: parseAccelerator(entry.accelerator, fallback.accelerator, warnings),
+      enabled: typeof entry.enabled === 'boolean' ? entry.enabled : fallback.enabled,
+    }
+    out[action] = binding
+  }
+  return out
+}
+
+function parseDesktopSettings(raw: unknown, warnings: string[]): DesktopSettings {
+  const s = defaultDesktopSettings()
+  if (!isObj(raw)) return s
+  for (const key of ['globalShortcuts', 'minimizeToTray', 'startWithWindows', 'gamingMode'] as const) {
+    if (typeof raw[key] === 'boolean') s[key] = raw[key] as boolean
+  }
+  if (isFiniteNumber(raw.soundVolume)) {
+    s.soundVolume = Math.min(1, Math.max(0, raw.soundVolume))
+  }
+  s.hotkeys = parseHotkeys(raw.hotkeys, warnings)
+  return s
+}
+
 function parseSettings(raw: unknown, warnings: string[]): Settings {
-  if (!isObj(raw)) return { ...defaultSettings }
-  const s = { ...defaultSettings }
+  if (!isObj(raw)) return { ...defaultSettings, desktop: defaultDesktopSettings() }
+  const s: Settings = { ...defaultSettings, desktop: defaultDesktopSettings() }
   if (raw.theme === 'dark' || raw.theme === 'light') s.theme = raw.theme
   if (raw.accent === 'violet' || raw.accent === 'azure' || raw.accent === 'gold' || raw.accent === 'mint')
     s.accent = raw.accent
@@ -119,10 +235,12 @@ function parseSettings(raw: unknown, warnings: string[]): Settings {
   } else if (raw.dailyGoal !== undefined) {
     warnings.push('Daily goal was not a number, the default was used.')
   }
+  s.desktop = parseDesktopSettings(raw.desktop, warnings)
   return s
 }
 
-/** Validate anything that claims to be tracker data (storage or an import). */
+/** Validate anything that claims to be tracker data (storage or an import).
+ *  Data written by schema v1 is migrated here rather than rejected. */
 export function validateAppData(input: unknown): ValidationResult {
   const errors: string[] = []
   const warnings: string[] = []
@@ -162,6 +280,7 @@ export function validateAppData(input: unknown): ValidationResult {
   for (const s of sessions) {
     if (s.endedAt === null && s.id !== activeSessionId) {
       s.endedAt = lastEventTime(s) ?? s.startedAt
+      for (const span of s.pauses) if (span.to === null) span.to = s.endedAt
       warnings.push(`"${s.name}" had no end time and was closed automatically.`)
     }
   }
@@ -184,7 +303,7 @@ function lastEventTime(s: Session): number | null {
 }
 
 /* ------------------------------------------------------------------ */
-/* localStorage access                                                 */
+/* Browser localStorage access                                         */
 /* ------------------------------------------------------------------ */
 
 export type StorageStatus = 'ok' | 'unavailable' | 'quota-exceeded'
@@ -200,38 +319,55 @@ export function isStorageAvailable(): boolean {
   }
 }
 
-/** Read saved data. Never throws: a corrupt entry falls back to an empty state. */
-export function loadData(): { data: AppData; status: StorageStatus; warnings: string[] } {
-  if (!isStorageAvailable()) {
-    return { data: emptyData(), status: 'unavailable', warnings: [] }
-  }
-  const raw = window.localStorage.getItem(STORAGE_KEY)
-  if (!raw) return { data: emptyData(), status: 'ok', warnings: [] }
+export interface LoadResult {
+  data: AppData
+  status: StorageStatus
+  warnings: string[]
+  /** False when the store held nothing at all, which first-run flows use. */
+  existed: boolean
+}
+
+/** Turn a raw stored string into data. Never throws. */
+export function parseStoredText(raw: string | null): Omit<LoadResult, 'status'> {
+  if (!raw) return { data: emptyData(), warnings: [], existed: false }
   try {
     const result = validateAppData(JSON.parse(raw))
     if (!result.ok || !result.data) {
       return {
         data: emptyData(),
-        status: 'ok',
-        warnings: ['Saved data could not be read and was ignored. A backup is kept under a ".broken" key.'],
+        warnings: ['Saved data could not be read and was ignored.'],
+        existed: false,
       }
     }
-    return { data: result.data, status: 'ok', warnings: result.warnings }
+    return { data: result.data, warnings: result.warnings, existed: true }
   } catch {
+    return {
+      data: emptyData(),
+      warnings: ['Saved data was not valid JSON and was ignored.'],
+      existed: false,
+    }
+  }
+}
+
+export function readLocalStorage(): LoadResult {
+  if (!isStorageAvailable()) {
+    return { data: emptyData(), status: 'unavailable', warnings: [], existed: false }
+  }
+  const raw = window.localStorage.getItem(STORAGE_KEY)
+  const parsed = parseStoredText(raw)
+  // Keep anything unreadable instead of letting the next save erase it.
+  if (raw && !parsed.existed) {
     try {
       window.localStorage.setItem(`${STORAGE_KEY}.broken`, raw)
     } catch {
       /* the backup is best effort only */
     }
-    return {
-      data: emptyData(),
-      status: 'ok',
-      warnings: ['Saved data was not valid JSON and was ignored. A copy is kept under a ".broken" key.'],
-    }
+    parsed.warnings = [`${parsed.warnings[0] ?? 'Saved data was unreadable.'} A copy is kept under a ".broken" key.`]
   }
+  return { ...parsed, status: 'ok' }
 }
 
-export function saveData(data: AppData): StorageStatus {
+export function writeLocalStorage(data: AppData): StorageStatus {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
     return 'ok'
@@ -242,7 +378,7 @@ export function saveData(data: AppData): StorageStatus {
   }
 }
 
-export function clearStoredData(): void {
+export function clearLocalStorage(): void {
   try {
     window.localStorage.removeItem(STORAGE_KEY)
   } catch {

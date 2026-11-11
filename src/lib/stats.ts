@@ -7,8 +7,26 @@ export function sessionCount(s: Session): number {
   return Math.max(0, total)
 }
 
+/** True while the session is in an open pause span. */
+export function isPaused(s: Session): boolean {
+  return s.endedAt === null && s.pauses.some((p) => p.to === null)
+}
+
+/** Total time the session spent paused, including a pause still open. */
+export function pausedMs(s: Session, now = Date.now()): number {
+  const end = s.endedAt ?? now
+  let total = 0
+  for (const span of s.pauses) {
+    const to = span.to ?? end
+    total += Math.max(0, Math.min(to, end) - span.from)
+  }
+  return total
+}
+
+/** Wall-clock length minus any paused stretches. */
 export function sessionDuration(s: Session, now = Date.now()): number {
-  return Math.max(0, (s.endedAt ?? now) - s.startedAt)
+  const gross = Math.max(0, (s.endedAt ?? now) - s.startedAt)
+  return Math.max(0, gross - pausedMs(s, now))
 }
 
 /** Chests per hour, or null when the session is too short to be meaningful. */

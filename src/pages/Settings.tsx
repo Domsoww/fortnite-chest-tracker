@@ -15,15 +15,21 @@ import {
   Trash2,
   Upload,
   Volume2,
+  MonitorDown,
+  Play,
 } from 'lucide-react'
 import { Card, CardHeader } from '../components/Card'
+import { DesktopSettings } from '../components/DesktopSettings'
+import { isDesktop } from '../desktop/platform'
 import { PageHeader } from '../components/PageHeader'
 import type { ConfirmOptions } from '../components/ConfirmDialog'
 import { useTracker } from '../state/tracker'
 import { useToast } from '../state/toast'
 import { buildExport, exportFileName, validateAppData } from '../lib/storage'
+import { exportToFile } from '../lib/persistence'
 import { sessionCount } from '../lib/stats'
 import { formatNumber } from '../lib/format'
+import { playChestSound } from '../lib/sound'
 import type { AccentName, AppData, ThemeMode } from '../types'
 
 const accents: { name: AccentName; label: string; from: string; to: string }[] = [
@@ -44,6 +50,7 @@ export function Settings({ confirm }: { confirm: (options: ConfirmOptions) => Pr
     data,
     settings,
     updateSettings,
+    updateDesktopSettings,
     replaceData,
     mergeImport,
     deleteAllSessions,
@@ -61,8 +68,23 @@ export function Settings({ confirm }: { confirm: (options: ConfirmOptions) => Pr
   /* ---------------- export ---------------- */
 
   const handleExport = () => {
+    const payload = JSON.stringify(buildExport(data), null, 2)
+
+    // The desktop shell writes the file itself: WebView2's download flow is
+    // easy to miss, and the user should be told exactly where it went.
+    if (isDesktop) {
+      void exportToFile(payload, exportFileName())
+        .then((path) => push(`Backup written to ${path}`, 'success'))
+        .catch((err: unknown) =>
+          push(
+            `The backup could not be written: ${err instanceof Error ? err.message : String(err)}`,
+            'danger',
+          ),
+        )
+      return
+    }
+
     try {
-      const payload = JSON.stringify(buildExport(data), null, 2)
       const blob = new Blob([payload], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -399,10 +421,50 @@ export function Settings({ confirm }: { confirm: (options: ConfirmOptions) => Pr
             <Toggle
               icon={<Volume2 size={16} />}
               label="Chest sound"
-              description="A short synthesised blip on each chest. No audio files are downloaded."
+              description="A short confirmation blip on each counted chest, bundled with the app."
               checked={settings.sound}
               onChange={(v) => updateSettings({ sound: v })}
             />
+            {!isDesktop ? (
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="label" htmlFor="web-volume">
+                    Volume
+                  </label>
+                  <span className="tabular text-xs font-semibold text-muted">
+                    {Math.round(settings.desktop.soundVolume * 100)}%
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-3">
+                  <input
+                    id="web-volume"
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={Math.round(settings.desktop.soundVolume * 100)}
+                    onChange={(e) =>
+                      updateDesktopSettings({ soundVolume: Number(e.target.value) / 100 })
+                    }
+                    disabled={!settings.sound}
+                    className="w-full accent-[var(--accent)] disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    className="btn shrink-0 px-3 py-1.5 text-xs"
+                    onClick={() => {
+                      if (!settings.sound) {
+                        push('Switch the chest sound on first.', 'info')
+                        return
+                      }
+                      playChestSound(settings.desktop.soundVolume)
+                    }}
+                  >
+                    <Play size={14} /> Test
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </Card>
 
@@ -507,8 +569,35 @@ export function Settings({ confirm }: { confirm: (options: ConfirmOptions) => Pr
             </dl>
           </div>
         </Card>
+        {isDesktop ? <DesktopSettings /> : <DesktopPromo />}
       </div>
     </>
+  )
+}
+
+/** Shown in the browser build so web users know the desktop app exists and
+ *  how their data gets there. */
+function DesktopPromo() {
+  return (
+    <Card className="xl:col-span-2">
+      <CardHeader
+        title="Windows desktop app"
+        subtitle="Global shortcuts while Fortnite is in the foreground"
+        icon={<MonitorDown size={18} />}
+      />
+      <div className="space-y-3 p-5 text-sm leading-relaxed text-muted sm:p-6">
+        <p>
+          The desktop build adds global hotkeys (Ctrl+Shift+1 to 4 by default), a system tray icon
+          and background counting, so you never alt-tab out of a match. Everything you see here
+          works exactly the same there.
+        </p>
+        <p>
+          Browser data does not travel to the desktop app on its own — they use separate storage.
+          Use <strong className="text-ink">Export JSON</strong> here, then{' '}
+          <strong className="text-ink">Import JSON</strong> in the desktop app once.
+        </p>
+      </div>
+    </Card>
   )
 }
 

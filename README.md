@@ -4,140 +4,193 @@
 
 **A polished, local-first chest counter for Fortnite players.**
 
-Count every chest you crack, split your play into sessions, and watch your
-records grow — with no account, no backend and no API keys.
+Count every chest you crack — in the browser, or as a Windows desktop companion
+with global hotkeys that work while Fortnite is in the foreground.
 
-React · TypeScript · Vite · Tailwind CSS · localStorage
+React · TypeScript · Vite · Tailwind CSS · Tauri 2 · localStorage
 
 </div>
 
 ---
 
-## Why
+## Two ways to run it
 
-Fortnite does not tell you how many chests you opened in a session. This app does
-— you tap one big button, and it handles sessions, statistics, records and charts
-around it. Everything runs in your browser and stays on your machine.
+| | **Web version** | **Windows desktop version** |
+|---|---|---|
+| Install | none, open it in a browser | NSIS or MSI installer |
+| Counting | click the button, or <kbd>Space</kbd> while the tab is focused | **global hotkeys**, any window focused |
+| While gaming | needs alt-tab | runs in the system tray |
+| Sound | yes | yes, also while minimised |
+| Data | browser localStorage | JSON file in your Windows app-data folder |
+| Statistics, history, import/export | identical | identical |
 
-- **No account, no server, no tracking.** Data is saved in your browser's local storage.
-- **Works offline** once the page is open.
-- **Yours to export.** One click gives you a JSON backup you can re-import anywhere.
+Both builds come from the same React code, so the interface, statistics and
+data format are the same. Neither one needs an account, a server or an internet
+connection.
 
 ## Features
 
 ### Counter
 - Oversized counter with the primary **Chest opened** button as the focus of the UI
-- Keyboard shortcuts: <kbd>Space</kbd> / <kbd>Enter</kbd> to count, <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd> to undo
+- In-window keys: <kbd>Space</kbd> / <kbd>Enter</kbd> to count, <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Z</kbd> to undo
 - Undo the last action, quick `-1` / `+5` adjustments, or type an exact value
+- Pause and resume a session; paused time is excluded from its duration
 - Reset the running session behind a confirmation dialog
-- Optional rising `+1` labels, counter pop animation and a synthesised chest blip
+
+### Global hotkeys (desktop only)
+| Shortcut | Action |
+|---|---|
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>1</kbd> | Add one chest |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>2</kbd> | Remove one chest |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>3</kbd> | Undo last action |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>4</kbd> | Pause / resume session |
+
+Every binding can be re-recorded, switched off individually, or turned off as a
+group. Registration status is shown per shortcut: if Windows refuses a
+combination because another application already owns it, the app says so and
+asks you to pick another. It never pretends a shortcut is live when it is not.
 
 ### Sessions
-- Start and finish sessions explicitly, or just start counting — a session is created for you
-- Every session stores its name, date, start time, end time, duration and each individual chest
+- Start and finish sessions explicitly, or just start counting — one is created for you
+- Each session stores its name, date, start, end, pauses, duration and every individual chest
 - Rename and delete sessions, with one-click **Undo** after a delete
 - History grouped by day, searchable by name or date, sortable five ways
 
 ### Statistics
 - Totals: all time, today, last 7 days, last 30 days, tracked playtime
 - Averages per session and per active day
-- Daily chest chart over 7 / 14 / 30 / 90 days, cumulative growth area chart, looting-by-hour chart
+- Daily chest chart over 7 / 14 / 30 / 90 days, cumulative growth, looting by hour
 - Personal records: best session, best day, fastest looting rate, longest session
 - Current and longest day streak
 
+### Desktop extras
+- System tray icon with live session info, start / pause / finish, a shortcut toggle and Quit
+- Closing the window hides it to the tray and keeps counting; Quit from the tray exits fully
+- Optional **Start with Windows**
+- Bundled confirmation sound with a volume slider and a test button
+- Single-instance guard so a second launch focuses the running copy
+
 ### Data
-- Automatic save on every change, with a final flush when the tab closes
-- Export to pretty-printed JSON, named `chest-tracker-YYYY-MM-DD.json`
-- Import with **full validation**: bad files are rejected with a readable reason,
-  repairable files are imported with a list of what was fixed
-- Import as **merge** (keeps what you have, skips duplicates) or **replace**
-- Corrupt saved data is never silently lost — it is set aside under a `.broken` key
-- Clear warnings when a browser blocks local storage (private windows) or runs out of quota
+- Automatic save on every change, plus a flush when the window closes
+- Desktop writes through a temporary file and keeps a `.backup.json`, so an interrupted
+  write cannot destroy your history
+- Export to pretty-printed JSON; import with full validation, as **merge** or **replace**
+- Corrupt data is set aside rather than overwritten
 
-### Design
-- Dark-first premium gaming dashboard with purple/blue/gold accents
-- Light theme and four accent presets
-- Responsive from a 320 px phone up to a widescreen desktop
-- Animations can be switched off; the OS `prefers-reduced-motion` setting is honoured
+## Install the Windows version
 
-## Screens
+1. Open the [Releases page](https://github.com/Domsoww/fortnite-chest-tracker/releases).
+2. Download `Chest Tracker_<version>_x64-setup.exe` (NSIS installer, ~1.3 MB) or
+   `Chest Tracker_<version>_x64_en-US.msi` (~1.9 MB).
+3. Run it. It installs for the current user, so no administrator prompt is needed.
+4. Launch **Chest Tracker**, start a session, then alt-tab into Fortnite.
 
-| Page | What it is for |
-| --- | --- |
-| **Dashboard** | The big counter, today's progress against your daily goal, a 7-day sparkline, key stats and your latest sessions |
-| **History** | Every session, grouped by day, with search, sorting, rename and delete |
-| **Statistics** | Charts and detailed performance, plus personal records |
-| **Settings** | Export/import, danger zone, theme and accent, counting preferences |
+The installer is unsigned, so SmartScreen may show "Windows protected your PC"
+on first run — choose **More info → Run anyway**, or build it yourself from
+source with the instructions below.
 
-## Running it locally
+### Moving your web data to the desktop app
 
-Requires **Node.js 18 or newer** (Node 20+ recommended) and npm.
+Browser storage and desktop storage are separate on purpose; nothing is copied
+automatically. In the web version choose **Settings → Export JSON**, then in the
+desktop app choose **Settings → Import JSON** and pick **Merge** or **Replace**.
+
+## Running from source
+
+Requires **Node.js 18+** (20 recommended). The desktop build additionally needs
+the [Rust toolchain](https://rustup.rs) and, on Windows, the
+**WebView2 runtime** (pre-installed on Windows 11 and current Windows 10).
 
 ```bash
-git clone https://github.com/<your-username>/fortnite-chest-tracker.git
+git clone https://github.com/Domsoww/fortnite-chest-tracker.git
 cd fortnite-chest-tracker
 npm install
 npm run dev
 ```
 
-Vite prints a local URL (usually <http://localhost:5173>). Open it and start counting.
-
-### Production build
+### Web production build
 
 ```bash
 npm run build     # type-checks, then builds into dist/
 npm run preview   # serves the built output locally
 ```
 
-The build uses a relative `base`, so `dist/` can be served from any path — a
-subfolder, GitHub Pages, Netlify, or your own static host.
+### Desktop app
+
+```bash
+npm run desktop:dev     # Tauri dev build with hot reload
+npm run desktop:build   # production app + installers
+```
+
+Installers land in `src-tauri/target/release/bundle/`:
+`nsis/Chest Tracker_2.0.0_x64-setup.exe` and `msi/Chest Tracker_2.0.0_x64_en-US.msi`.
+Building Windows installers requires a Windows machine or a Windows CI runner —
+they cannot be produced from macOS or Linux.
 
 | Script | What it does |
-| --- | --- |
-| `npm run dev` | Start the dev server with hot reload |
-| `npm run build` | Type-check and build the production bundle into `dist/` |
-| `npm run preview` | Serve the production build locally |
-| `npm run typecheck` | Run TypeScript without emitting |
+|---|---|
+| `npm run dev` | Vite dev server with hot reload |
+| `npm run build` | Type-check and build the web bundle into `dist/` |
+| `npm run preview` | Serve the production web build |
+| `npm run typecheck` | TypeScript with no emit |
+| `npm run desktop:dev` | Run the Tauri desktop shell against the dev server |
+| `npm run desktop:build` | Build the desktop app and its Windows installers |
+
+## Publishing a release
+
+Installers are built by GitHub Actions, never committed to the repository.
+
+1. Bump the version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`.
+2. Commit, tag and push:
+   ```bash
+   git tag v2.0.0 && git push origin main --tags
+   ```
+3. Publish a GitHub Release for that tag. The **Release** workflow builds the
+   NSIS and MSI installers on a `windows-latest` runner and attaches them to
+   the release, then deploys the web build to GitHub Pages.
+
+`.github/workflows/ci.yml` runs on every push: a type-checked web build on
+Linux, and a full Windows installer build whose artifacts you can download from
+the run summary without creating a release.
 
 ## Project structure
 
 ```
 fortnite-chest-tracker/
-├── index.html                 # Vite entry point
-├── public/
-│   └── chest.svg              # Original SVG favicon
-├── src/
-│   ├── main.tsx               # React root, providers, error boundary
-│   ├── App.tsx                # Routing, theme application, global dialogs
-│   ├── index.css              # Design tokens, component classes, animations
-│   ├── types.ts               # Session / event / settings types
+├── index.html                   # Vite entry point
+├── public/chest.svg             # Original SVG favicon
+├── src/                         # Shared React app (web + desktop)
+│   ├── main.tsx  App.tsx  index.css  types.ts
 │   ├── lib/
-│   │   ├── storage.ts         # localStorage access, validation, export/import, merge
-│   │   ├── stats.ts           # Totals, per-day buckets, streaks, records, histograms
-│   │   ├── format.ts          # Date, duration and number formatting
-│   │   ├── sound.ts           # WebAudio chest blip (no audio assets)
-│   │   ├── id.ts              # Safe id generation
-│   │   └── useHashRoute.ts    # Dependency-free hash router
+│   │   ├── storage.ts           # Schema, validation, v1→v2 migration, export/import
+│   │   ├── persistence.ts       # Picks the browser or desktop backend
+│   │   ├── stats.ts             # Totals, buckets, streaks, records, pause-aware duration
+│   │   ├── format.ts  sound.ts  id.ts  useHashRoute.ts
+│   ├── desktop/
+│   │   ├── platform.ts          # Am I inside Tauri?
+│   │   └── bridge.ts            # Typed wrappers for the Rust commands and events
 │   ├── state/
-│   │   ├── tracker.tsx        # Reducer, persistence, public store API
-│   │   └── toast.tsx          # Toast notifications
-│   ├── components/            # Shell, counter, charts, cards, dialogs
-│   └── pages/
-│       ├── Dashboard.tsx
-│       ├── History.tsx
-│       ├── Statistics.tsx
-│       └── Settings.tsx
-├── LICENSE                    # MIT
-└── package.json
+│   │   ├── tracker.tsx          # Reducer, async hydration, persistence
+│   │   ├── desktop.tsx          # Hotkey + tray wiring, shortcut registration
+│   │   └── toast.tsx
+│   ├── assets/                  # Bundled confirmation sounds (generated, original)
+│   ├── components/              # Shell, counter, charts, desktop settings, dialogs
+│   └── pages/                   # Dashboard, History, Statistics, Settings
+├── src-tauri/                   # Tauri 2 desktop shell
+│   ├── src/lib.rs               # Shortcuts, tray, autostart, data file commands
+│   ├── tauri.conf.json          # Window, bundle and security configuration
+│   ├── capabilities/default.json
+│   └── icons/                   # Generated from icons/source-1024.png
+└── .github/workflows/           # ci.yml, release.yml
 ```
 
 ## How your data is stored
 
-Everything lives under a single local-storage key, `fortnite-chest-tracker:v1`:
+Same JSON shape in both builds:
 
 ```jsonc
 {
-  "version": 1,
+  "version": 2,
   "activeSessionId": "…",          // null when no session is running
   "sessions": [
     {
@@ -145,66 +198,50 @@ Everything lives under a single local-storage key, `fortnite-chest-tracker:v1`:
       "name": "Session 1",
       "startedAt": 1762800000000,  // epoch ms
       "endedAt": 1762803600000,    // null while running
+      "pauses": [{ "from": 1762801000000, "to": 1762801600000 }],
       "events": [
         { "id": "…", "ts": 1762800123456, "delta": 1, "kind": "chest" }
       ]
     }
   ],
-  "settings": { "theme": "dark", "accent": "violet", "dailyGoal": 50 }
+  "settings": { "theme": "dark", "dailyGoal": 50, "desktop": { "hotkeys": { } } }
 }
 ```
 
+- **Web:** one `localStorage` key, `fortnite-chest-tracker:v1`.
+- **Desktop:** `%APPDATA%\io.github.domsoww.chesttracker\chest-tracker-data.json`
+  (the exact path is shown in Settings), with `chest-tracker-data.backup.json` beside it.
+
 Chests are stored as individual timestamped events rather than a plain total.
 That is what makes undo, the per-day charts and the looting-by-hour histogram
-work from real data instead of guesses. Exports are the same structure plus an
-`app` and `exportedAt` field, and the importer validates every field before
-anything touches your existing data.
+work from real data. **v1 data is migrated to v2 automatically** on first load:
+sessions gain an empty `pauses` list and settings gain the `desktop` block.
+Nothing is deleted or rewritten until you make a change.
 
-**Keep in mind:** local storage is per browser and per profile. Clearing site
-data, using a private window, or switching to another browser or device means
-starting fresh — export a backup first.
+## Fortnite safety
 
-## Publishing to GitHub
-
-```bash
-git init
-git add .
-git commit -m "Initial commit: Fortnite Chest Tracker"
-git branch -M main
-git remote add origin https://github.com/<your-username>/fortnite-chest-tracker.git
-git push -u origin main
-```
-
-The repository contains no secrets, no `.env` file and no paid or proprietary
-dependencies, so it is safe to make public as-is.
-
-### Optional: host it on GitHub Pages
-
-```bash
-npm run build
-npx gh-pages -d dist      # or push dist/ to a gh-pages branch yourself
-```
-
-Then enable Pages for that branch in the repository settings. Because routing is
-hash-based and `base` is relative, no rewrite rules are needed.
-
-## Contributing
-
-Issues and pull requests are welcome. Please run `npm run build` before opening a
-PR so type errors are caught early.
+This app only ever counts key presses *you* make. It does **not** read Fortnite's
+memory, inject code, modify game files, interact with anti-cheat, send input to
+the game, or automate anything. The global hotkeys are ordinary Windows
+shortcuts registered through the OS, the same mechanism any chat or capture tool
+uses.
 
 ## Known limitations
 
-- Chests are **counted manually**. Nothing reads the game — there is no official
-  API for chest events, and anything that inspected the game process would risk
-  your account.
-- Data is **per browser**. There is no sync; moving devices means export + import.
-- Sessions are bookkeeping, not match detection: one session can span many matches.
-- Statistics are computed in the browser on every render. That is instant for
-  normal use (thousands of sessions), but a decade of data in one file will
-  eventually be noticeable.
-- No automated test suite yet; the app has been verified by hand and by a
-  production build.
+- Chests are **counted manually**. Nothing reads the game, by design.
+- **Windows only** for the desktop build. The code is cross-platform, but the tray,
+  autostart and installer configuration are written and tested for Windows.
+- Data is **per install**. There is no sync; moving machines means export + import.
+- The installer is **unsigned** (code-signing certificates are paid), hence the
+  SmartScreen warning described above.
+- No automated test suite yet; CI builds and type-checks but does not run unit tests.
+- Statistics are recomputed in the browser on each render — instant for normal use,
+  but a decade of data in one file will eventually be noticeable.
+
+## Contributing
+
+Issues and pull requests are welcome. Run `npm run build` (and `npm run desktop:build`
+if you touched `src-tauri/`) before opening a PR.
 
 ## Legal
 
@@ -212,4 +249,5 @@ MIT licensed — see [LICENSE](LICENSE).
 
 This is an unofficial, fan-made tool. It is **not affiliated with, endorsed by or
 sponsored by Epic Games**. Fortnite is a trademark of Epic Games, Inc. No game
-assets are bundled or used: every graphic in this app is original CSS and SVG.
+assets are bundled or used: every graphic and sound in this app was generated
+for it.

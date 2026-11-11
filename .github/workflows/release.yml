@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to attach the installers to (e.g. v2.0.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Build and attach Windows installers
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+
+      - name: Build installers and attach them to the release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event.release.tag_name || inputs.tag }}
+          releaseName: 'Chest Tracker __VERSION__'
+          releaseBody: |
+            Windows desktop build of Chest Tracker.
+
+            Download `Chest Tracker_<version>_x64-setup.exe` (NSIS) or the `.msi`,
+            run it, and the tracker installs for the current user.
+
+            The web version stays available in this repository and needs no install.
+          releaseDraft: false
+          prerelease: false
+          args: ''
+
+  pages:
+    name: Publish the web version to GitHub Pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deploy
+        uses: actions/deploy-pages@v4
