@@ -38,7 +38,7 @@ jobs:
           releaseBody: |
             Windows desktop build of Chest Tracker.
 
-            Download `Chest.Tracker_<version>_x64-setup.exe` (NSIS) or the `.msi`,
+            Download `Chest Tracker_<version>_x64-setup.exe` (NSIS) or the `.msi`,
             run it, and the tracker installs for the current user.
 
             The web version stays available in this repository and needs no install.

@@ -80,7 +80,8 @@ asks you to pick another. It never pretends a shortcut is live when it is not.
 ## Install the Windows version
 
 1. Open the [Releases page](https://github.com/Domsoww/fortnite-chest-tracker/releases).
-2. Download `Chest.Tracker_<version>_x64-setup.exe` (NSIS) or the `.msi`.
+2. Download `Chest Tracker_<version>_x64-setup.exe` (NSIS installer, ~1.3 MB) or
+   `Chest Tracker_<version>_x64_en-US.msi` (~1.9 MB).
 3. Run it. It installs for the current user, so no administrator prompt is needed.
 4. Launch **Chest Tracker**, start a session, then alt-tab into Fortnite.
 
@@ -121,7 +122,8 @@ npm run desktop:dev     # Tauri dev build with hot reload
 npm run desktop:build   # production app + installers
 ```
 
-Installers land in `src-tauri/target/release/bundle/` (`nsis/*.exe`, `msi/*.msi`).
+Installers land in `src-tauri/target/release/bundle/`:
+`nsis/Chest Tracker_2.0.0_x64-setup.exe` and `msi/Chest Tracker_2.0.0_x64_en-US.msi`.
 Building Windows installers requires a Windows machine or a Windows CI runner —
 they cannot be produced from macOS or Linux.
 
