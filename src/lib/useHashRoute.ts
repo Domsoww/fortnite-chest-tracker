@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-export const routes = ['dashboard', 'history', 'statistics', 'settings'] as const
+export const routes = ['dashboard', 'treasure', 'history', 'statistics', 'settings'] as const
 export type Route = (typeof routes)[number]
 
 function readHash(): Route {
@@ -36,7 +36,9 @@ export function useHashRoute(): [Route, (next: Route) => void] {
     document.title =
       route === 'dashboard'
         ? 'Chest Tracker — Dashboard'
-        : `Chest Tracker — ${route[0].toUpperCase()}${route.slice(1)}`
+        : route === 'treasure'
+          ? 'Chest Tracker — Treasure Hours'
+          : `Chest Tracker — ${route[0].toUpperCase()}${route.slice(1)}`
   }, [route])
 
   return [route, navigate]

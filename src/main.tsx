@@ -4,6 +4,7 @@ import { App } from './App'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { TrackerProvider } from './state/tracker'
 import { DesktopProvider } from './state/desktop'
+import { TreasureProvider } from './state/treasure'
 import { ToastProvider } from './state/toast'
 import './index.css'
 
@@ -15,9 +16,11 @@ createRoot(container).render(
     <ErrorBoundary>
       <ToastProvider>
         <TrackerProvider>
-          <DesktopProvider>
-            <App />
-          </DesktopProvider>
+          <TreasureProvider>
+            <DesktopProvider>
+              <App />
+            </DesktopProvider>
+          </TreasureProvider>
         </TrackerProvider>
       </ToastProvider>
     </ErrorBoundary>

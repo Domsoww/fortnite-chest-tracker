@@ -16,6 +16,7 @@ import { useToast } from '../state/toast'
 import { playBlockedSound, playChestSound } from '../lib/sound'
 import { formatDuration, formatNumber, formatTime } from '../lib/format'
 import { sessionRate } from '../lib/stats'
+import { TreasureBadge } from './TreasureBadge'
 import type { ConfirmOptions } from './ConfirmDialog'
 
 interface FloatLabel {
@@ -227,6 +228,7 @@ export function Counter({
         </div>
         {activeSession ? (
           <div className="flex flex-wrap items-center gap-2">
+            <TreasureBadge />
             <span
               className={`chip ${paused ? 'border-gold/40 text-gold' : 'border-success/40 text-success'}`}
             >
@@ -239,7 +241,10 @@ export function Counter({
             {rate !== null && !paused ? <span className="chip">{Math.round(rate)} chests/h</span> : null}
           </div>
         ) : (
-          <span className="chip">Press the button to begin</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <TreasureBadge />
+            <span className="chip">Press the button to begin</span>
+          </div>
         )}
       </div>
 

@@ -14,6 +14,9 @@ import {
   Target,
   Trash2,
   Upload,
+  Gem,
+  Bell,
+  BellOff,
   Volume2,
   MonitorDown,
   Play,
@@ -51,6 +54,7 @@ export function Settings({ confirm }: { confirm: (options: ConfirmOptions) => Pr
     settings,
     updateSettings,
     updateDesktopSettings,
+    updateTreasureSettings,
     replaceData,
     mergeImport,
     deleteAllSessions,
@@ -515,6 +519,35 @@ export function Settings({ confirm }: { confirm: (options: ConfirmOptions) => Pr
               checked={settings.confirmReset}
               onChange={(v) => updateSettings({ confirmReset: v })}
             />
+          </div>
+        </Card>
+
+        {/* ---------------------- Treasure Hours ---------------------- */}
+        <Card>
+          <CardHeader
+            title="Treasure Hours"
+            subtitle="Boosted token windows and their reminders"
+            icon={<Gem size={18} />}
+          />
+          <div className="space-y-5 p-5 sm:p-6">
+            <Toggle
+              icon={<Gem size={16} />}
+              label="Track Treasure Hours"
+              description="Shows the countdown panel, the dashboard banner and the live marker on the counter."
+              checked={settings.treasure.enabled}
+              onChange={(v) => updateTreasureSettings({ enabled: v })}
+            />
+            <Toggle
+              icon={settings.treasure.notifications ? <Bell size={16} /> : <BellOff size={16} />}
+              label="Reminders"
+              description="Notifies you before a window starts. Each reminder fires once."
+              checked={settings.treasure.notifications}
+              onChange={(v) => updateTreasureSettings({ notifications: v })}
+            />
+            <p className="text-xs text-faint">
+              Reminder timings, the schedule source and hand-entered windows live on the
+              Treasure page, next to the countdown they affect.
+            </p>
           </div>
         </Card>
 

@@ -282,6 +282,114 @@
     height: 1px;
     background: linear-gradient(90deg, transparent, var(--border), transparent);
   }
+
+  /* --- Treasure Hours ------------------------------------------- */
+
+  /* A gold, pirate-chest register that sets the feature apart from the
+     violet counter without introducing a second design language. */
+  .treasure-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+    background: linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--gold) 20%, transparent),
+      color-mix(in srgb, var(--gold) 8%, transparent)
+    );
+    color: var(--gold);
+    padding: 0.25rem 0.7rem;
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+  }
+
+  .treasure-icon {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.875rem;
+    border: 1px solid color-mix(in srgb, var(--gold) 35%, var(--border));
+    background: color-mix(in srgb, var(--gold) 12%, var(--surface-3));
+    color: var(--gold);
+  }
+  .treasure-icon.is-live {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--gold) 55%, transparent);
+    animation: treasure-pulse 2.4s ease-out infinite;
+  }
+
+  .treasure-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 999px;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+  }
+  .treasure-state.is-active {
+    border: 1px solid color-mix(in srgb, var(--gold) 55%, transparent);
+    background: color-mix(in srgb, var(--gold) 18%, transparent);
+    color: var(--gold);
+  }
+  .treasure-state.is-upcoming {
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--text-muted);
+  }
+
+  /* Live windows get a warm border and a slow light sweep. */
+  .treasure-live {
+    border-color: color-mix(in srgb, var(--gold) 45%, var(--border));
+    box-shadow:
+      0 1px 0 0 color-mix(in srgb, #ffffff 7%, transparent) inset,
+      0 22px 50px -26px color-mix(in srgb, var(--gold) 45%, rgba(0, 0, 0, 0.8));
+  }
+
+  .treasure-sheen {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      100deg,
+      transparent 30%,
+      color-mix(in srgb, var(--gold) 12%, transparent) 50%,
+      transparent 70%
+    );
+    background-size: 220% 100%;
+    animation: treasure-sweep 5.5s linear infinite;
+  }
+
+  /* Buried-treasure glow behind the hero countdown. */
+  .treasure-hero::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -8rem;
+    width: 26rem;
+    height: 16rem;
+    transform: translateX(-50%);
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse at center,
+      color-mix(in srgb, var(--gold) 22%, transparent),
+      transparent 70%
+    );
+  }
+
+  .treasure-coins {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.5;
+    background-image:
+      radial-gradient(circle at 12% 22%, color-mix(in srgb, var(--gold) 55%, transparent) 0 2px, transparent 2px),
+      radial-gradient(circle at 86% 18%, color-mix(in srgb, var(--gold) 40%, transparent) 0 3px, transparent 3px),
+      radial-gradient(circle at 73% 72%, color-mix(in srgb, var(--gold) 30%, transparent) 0 2px, transparent 2px),
+      radial-gradient(circle at 25% 78%, color-mix(in srgb, var(--gold) 35%, transparent) 0 2px, transparent 2px);
+  }
 }
 
 /* --- Animations ------------------------------------------------- */
@@ -358,6 +466,27 @@
 }
 .animate-slide-up {
   animation: slide-up-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes treasure-sweep {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+@keyframes treasure-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--gold) 50%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 0.6rem transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
 }
 
 @keyframes live-dot {
