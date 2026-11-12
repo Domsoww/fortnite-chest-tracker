@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { BarChart3, History, LayoutDashboard, Settings as SettingsIcon } from 'lucide-react'
+import { BarChart3, Gem, History, LayoutDashboard, Settings as SettingsIcon } from 'lucide-react'
 import type { Route } from '../lib/useHashRoute'
 import { Logo } from './Logo'
 import { useTracker } from '../state/tracker'
@@ -8,6 +8,7 @@ import { totals } from '../lib/stats'
 
 const navItems: { route: Route; label: string; Icon: typeof LayoutDashboard }[] = [
   { route: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+  { route: 'treasure', label: 'Treasure', Icon: Gem },
   { route: 'history', label: 'History', Icon: History },
   { route: 'statistics', label: 'Statistics', Icon: BarChart3 },
   { route: 'settings', label: 'Settings', Icon: SettingsIcon },

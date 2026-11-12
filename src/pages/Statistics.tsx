@@ -6,6 +6,7 @@ import {
   Clock4,
   Flame,
   Gauge,
+  Gem,
   Hourglass,
   Layers,
   Package,
@@ -19,6 +20,9 @@ import { EmptyState } from '../components/EmptyState'
 import { PageHeader } from '../components/PageHeader'
 import { CumulativeChart, DailyChestsChart, HourChart } from '../components/charts'
 import { useTracker } from '../state/tracker'
+import { useTreasure } from '../state/treasure'
+import { treasureSplit } from '../lib/treasure'
+import { pragueDateTime, pragueRange } from '../lib/prague'
 import {
   cumulativeByDay,
   dayRange,
@@ -188,6 +192,8 @@ export function Statistics() {
         </Card>
       </div>
 
+      <TreasureStats />
+
       {/* Records */}
       <Card className="mt-5">
         <CardHeader title="Personal records" subtitle="Your best results so far" icon={<Trophy size={18} />} />
@@ -274,5 +280,89 @@ function RecordRow({
         <p className="truncate text-xs text-muted">{detail}</p>
       </div>
     </div>
+  )
+}
+
+/** Chests inside Treasure Hours against everything else. Shown only when the
+ *  feature is on, and explicit about history it cannot classify. */
+function TreasureStats() {
+  const { data, treasureSettings } = useTracker()
+  const { windows } = useTreasure()
+  const split = treasureSplit(data.sessions, windows)
+
+  if (!treasureSettings.enabled) return null
+
+  const counted = split.inside + split.outside
+  const share = counted > 0 ? (split.inside / counted) * 100 : 0
+
+  return (
+    <Card className="mt-5">
+      <CardHeader
+        title="Treasure Hours"
+        subtitle="Chests opened inside boosted windows"
+        icon={<Gem size={18} />}
+      />
+
+      {windows.length === 0 ? (
+        <EmptyState
+          icon={<Gem size={22} />}
+          title="No schedule loaded"
+          description="Without a Treasure Hours schedule there is nothing to measure your chests against. Open the Treasure page to load or add one."
+        />
+      ) : (
+        <>
+          <div className="grid gap-4 p-5 sm:grid-cols-3 sm:p-6">
+            <StatCard
+              label="In Treasure Hours"
+              value={formatNumber(split.inside)}
+              hint={`${formatDecimal(share)}% of classified chests`}
+              icon={<Gem size={16} />}
+              tone="gold"
+            />
+            <StatCard
+              label="Outside windows"
+              value={formatNumber(split.outside)}
+              hint="chests"
+              icon={<Clock4 size={16} />}
+            />
+            <StatCard
+              label="Windows recorded"
+              value={formatNumber(split.perWindow.filter((r) => r.chests > 0).length)}
+              hint={`of ${formatNumber(windows.length)} known`}
+              icon={<CalendarDays size={16} />}
+            />
+          </div>
+
+          {split.untagged > 0 ? (
+            <p className="px-5 pb-2 text-xs text-faint sm:px-6">
+              {formatNumber(split.untagged)} chests predate every window in the schedule, so they are
+              left out of the split rather than counted as "outside".
+            </p>
+          ) : null}
+
+          {split.perWindow.length === 0 ? (
+            <p className="px-5 pb-6 text-sm text-muted sm:px-6">
+              No chests have been recorded during a Treasure Hour yet.
+            </p>
+          ) : (
+            <ul className="divide-y divide-[var(--border)] border-t border-line">
+              {split.perWindow.map(({ window: w, chests }) => (
+                <li key={w.id} className="flex items-center justify-between gap-4 px-5 py-3 sm:px-6">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink">
+                      {pragueDateTime(w.startsAt)}
+                    </p>
+                    <p className="text-xs text-muted">{pragueRange(w.startsAt, w.endsAt)}</p>
+                  </div>
+                  <p className="tabular shrink-0 text-lg font-bold text-ink">
+                    {formatNumber(chests)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </Card>
   )
 }

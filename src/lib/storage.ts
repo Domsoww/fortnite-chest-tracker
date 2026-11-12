@@ -9,13 +9,28 @@ import type {
   PauseSpan,
   Session,
   Settings,
+  TreasureCache,
+  TreasureLead,
+  TreasureSettings,
+  TreasureWindow,
 } from '../types'
+import {
+  ALL_LEADS,
+  DEFAULT_FEED_URL,
+  defaultTreasureSettings,
+  emptyTreasureCache,
+  parseWindow,
+  parseFeed,
+  sortWindows,
+} from './treasure'
 
 export const STORAGE_KEY = 'fortnite-chest-tracker:v1'
-/** v1 → v2 added session pauses and the desktop settings block. The key above
- *  is deliberately unchanged so existing browser data is picked up and
+/** v1 → v2 added session pauses and the desktop settings block.
+ *  v2 → v3 added the Treasure Hours schedule cache, its settings, and an
+ *  optional window tag on each chest event. Every step is additive, and the
+ *  key above is deliberately unchanged so existing data is picked up and
  *  migrated in place rather than orphaned. */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 export const APP_ID = 'fortnite-chest-tracker'
 /** File name used by the desktop build inside the app data directory. */
 export const DATA_FILE = 'chest-tracker-data.json'
@@ -60,6 +75,7 @@ export const defaultSettings: Settings = {
   hotkeys: true,
   dailyGoal: 50,
   desktop: defaultDesktopSettings(),
+  treasure: defaultTreasureSettings(),
 }
 
 export function emptyData(): AppData {
@@ -67,7 +83,17 @@ export function emptyData(): AppData {
     version: SCHEMA_VERSION,
     sessions: [],
     activeSessionId: null,
-    settings: { ...defaultSettings, desktop: defaultDesktopSettings() },
+    settings: freshSettings(),
+    treasure: emptyTreasureCache(),
+  }
+}
+
+/** A settings object with its own nested objects, never shared by reference. */
+export function freshSettings(): Settings {
+  return {
+    ...defaultSettings,
+    desktop: defaultDesktopSettings(),
+    treasure: defaultTreasureSettings(),
   }
 }
 
@@ -98,12 +124,14 @@ function parseEvent(raw: unknown, warnings: string[], where: string): ChestEvent
   }
   const delta = Math.trunc(raw.delta)
   if (delta === 0) return null
-  return {
+  const event: ChestEvent = {
     id: typeof raw.id === 'string' && raw.id ? raw.id : `${raw.ts}-${Math.random().toString(36).slice(2, 8)}`,
     ts: Math.trunc(raw.ts),
     delta,
     kind: raw.kind === 'adjust' ? 'adjust' : 'chest',
   }
+  if (typeof raw.th === 'string' && raw.th.trim()) event.th = raw.th.trim().slice(0, 80)
+  return event
 }
 
 function parsePauses(raw: unknown, warnings: string[], where: string): PauseSpan[] {
@@ -221,9 +249,69 @@ function parseDesktopSettings(raw: unknown, warnings: string[]): DesktopSettings
   return s
 }
 
+function parseLeads(raw: unknown, fallback: TreasureLead[]): TreasureLead[] {
+  if (!Array.isArray(raw)) return fallback
+  const kept = ALL_LEADS.filter((lead) => raw.includes(lead))
+  return kept
+}
+
+function parseTreasureSettings(raw: unknown, warnings: string[]): TreasureSettings {
+  const s = defaultTreasureSettings()
+  if (!isObj(raw)) return s
+  for (const key of ['enabled', 'autoRefresh', 'notifications', 'sound', 'includeUnconfirmed'] as const) {
+    if (typeof raw[key] === 'boolean') s[key] = raw[key] as boolean
+  }
+  if (typeof raw.feedUrl === 'string') {
+    const url = raw.feedUrl.trim()
+    // Only an absolute http(s) address, or empty to mean "bundled copy only".
+    if (!url) s.feedUrl = ''
+    else if (/^https?:\/\//i.test(url)) s.feedUrl = url.slice(0, 500)
+    else {
+      warnings.push('The Treasure Hours schedule address was not a web address, the default was used.')
+      s.feedUrl = DEFAULT_FEED_URL
+    }
+  }
+  if (isFiniteNumber(raw.refreshMinutes)) {
+    s.refreshMinutes = Math.min(1440, Math.max(5, Math.trunc(raw.refreshMinutes)))
+  }
+  s.leads = parseLeads(raw.leads, s.leads)
+  return s
+}
+
+function parseManualWindows(raw: unknown): TreasureWindow[] {
+  if (!Array.isArray(raw)) return []
+  const out: TreasureWindow[] = []
+  for (const entry of raw) {
+    const parsed = parseWindow(entry)
+    // Anything the user stored by hand stays marked as theirs.
+    if (parsed) out.push({ ...parsed, status: 'manual' })
+  }
+  return sortWindows(out).slice(0, 200)
+}
+
+function parseTreasureCache(raw: unknown): TreasureCache {
+  const cache = emptyTreasureCache()
+  if (!isObj(raw)) return cache
+  if (isObj(raw.feed)) {
+    const parsed = parseFeed({ kind: 'treasure-hours', ...raw.feed })
+    if (parsed.ok && parsed.feed) cache.feed = parsed.feed
+  }
+  // A restored feed is never "remote" any more: it was downloaded earlier.
+  cache.origin = cache.feed ? 'cache' : 'none'
+  if (isFiniteNumber(raw.fetchedAt)) cache.fetchedAt = Math.trunc(raw.fetchedAt)
+  if (typeof raw.lastError === 'string') cache.lastError = raw.lastError.slice(0, 300)
+  cache.manual = parseManualWindows(raw.manual)
+  if (Array.isArray(raw.notified)) {
+    cache.notified = raw.notified
+      .filter((k): k is string => typeof k === 'string' && k.length < 100)
+      .slice(-200)
+  }
+  return cache
+}
+
 function parseSettings(raw: unknown, warnings: string[]): Settings {
-  if (!isObj(raw)) return { ...defaultSettings, desktop: defaultDesktopSettings() }
-  const s: Settings = { ...defaultSettings, desktop: defaultDesktopSettings() }
+  if (!isObj(raw)) return freshSettings()
+  const s: Settings = freshSettings()
   if (raw.theme === 'dark' || raw.theme === 'light') s.theme = raw.theme
   if (raw.accent === 'violet' || raw.accent === 'azure' || raw.accent === 'gold' || raw.accent === 'mint')
     s.accent = raw.accent
@@ -236,6 +324,7 @@ function parseSettings(raw: unknown, warnings: string[]): Settings {
     warnings.push('Daily goal was not a number, the default was used.')
   }
   s.desktop = parseDesktopSettings(raw.desktop, warnings)
+  s.treasure = parseTreasureSettings(raw.treasure, warnings)
   return s
 }
 
@@ -292,6 +381,7 @@ export function validateAppData(input: unknown): ValidationResult {
       sessions,
       activeSessionId,
       settings: parseSettings(input.settings, warnings),
+      treasure: parseTreasureCache(input.treasure),
     },
     errors,
     warnings,
@@ -398,6 +488,7 @@ export function buildExport(data: AppData): ExportFile {
     sessions: data.sessions,
     activeSessionId: data.activeSessionId,
     settings: data.settings,
+    treasure: data.treasure,
   }
 }
 
@@ -415,10 +506,18 @@ export function mergeData(current: AppData, incoming: AppData): AppData {
   const sessions = Array.from(byId.values()).sort((a, b) => b.startedAt - a.startedAt)
   const activeStillValid =
     current.activeSessionId !== null && sessions.some((s) => s.id === current.activeSessionId)
+  // Hand-entered windows from the other device are worth keeping; the cached
+  // feed is not, since it is re-downloaded anyway.
+  const manualById = new Map(current.treasure.manual.map((w) => [w.id, w]))
+  for (const w of incoming.treasure?.manual ?? []) {
+    if (!manualById.has(w.id)) manualById.set(w.id, w)
+  }
+
   return {
     version: SCHEMA_VERSION,
     sessions,
     activeSessionId: activeStillValid ? current.activeSessionId : null,
     settings: current.settings,
+    treasure: { ...current.treasure, manual: sortWindows(Array.from(manualById.values())) },
   }
 }

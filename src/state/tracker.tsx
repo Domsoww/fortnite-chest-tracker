@@ -9,10 +9,21 @@ import {
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
-import type { AppData, ChestEvent, DesktopSettings, Session, Settings } from '../types'
+import type {
+  AppData,
+  ChestEvent,
+  DesktopSettings,
+  Session,
+  Settings,
+  TreasureCache,
+  TreasureSettings,
+  TreasureWindow,
+} from '../types'
 import { createId } from '../lib/id'
 import { isPaused, sessionCount } from '../lib/stats'
 import { emptyData, mergeData, type StorageStatus } from '../lib/storage'
+import { rememberNotified, sortWindows } from '../lib/treasure'
+import { activeTreasureWindow } from '../lib/treasureNow'
 import {
   clearPersisted,
   loadPersisted,
@@ -26,7 +37,7 @@ import {
 
 type Action =
   | { type: 'hydrate'; data: AppData }
-  | { type: 'add-chest'; ts: number }
+  | { type: 'add-chest'; ts: number; th: string | null }
   | { type: 'adjust'; delta: number; ts: number }
   | { type: 'set-count'; value: number; ts: number }
   | { type: 'undo' }
@@ -40,6 +51,11 @@ type Action =
   | { type: 'delete-all-sessions' }
   | { type: 'update-settings'; patch: Partial<Settings> }
   | { type: 'update-desktop-settings'; patch: Partial<DesktopSettings> }
+  | { type: 'update-treasure-settings'; patch: Partial<TreasureSettings> }
+  | { type: 'update-treasure-cache'; patch: Partial<TreasureCache> }
+  | { type: 'add-manual-window'; window: TreasureWindow }
+  | { type: 'remove-manual-window'; id: string }
+  | { type: 'mark-notified'; keys: string[] }
   | { type: 'replace'; data: AppData }
   | { type: 'merge'; data: AppData }
 
@@ -84,8 +100,13 @@ export function reducer(data: AppData, action: Action): AppData {
     case 'hydrate':
       return action.data
 
-    case 'add-chest':
-      return pushEvent(data, { id: createId(), ts: action.ts, delta: 1, kind: 'chest' })
+    case 'add-chest': {
+      const event: ChestEvent = { id: createId(), ts: action.ts, delta: 1, kind: 'chest' }
+      // Stamped at the moment of counting, so a later schedule change cannot
+      // move a chest in or out of a Treasure Hour after the fact.
+      if (action.th) event.th = action.th
+      return pushEvent(data, event)
+    }
 
     case 'adjust': {
       if (action.delta === 0) return data
@@ -178,6 +199,41 @@ export function reducer(data: AppData, action: Action): AppData {
         settings: { ...data.settings, desktop: { ...data.settings.desktop, ...action.patch } },
       }
 
+    case 'update-treasure-settings':
+      return {
+        ...data,
+        settings: { ...data.settings, treasure: { ...data.settings.treasure, ...action.patch } },
+      }
+
+    case 'update-treasure-cache':
+      return { ...data, treasure: { ...data.treasure, ...action.patch } }
+
+    case 'add-manual-window': {
+      const manual = sortWindows([
+        ...data.treasure.manual.filter((w) => w.id !== action.window.id),
+        action.window,
+      ])
+      return { ...data, treasure: { ...data.treasure, manual } }
+    }
+
+    case 'remove-manual-window':
+      return {
+        ...data,
+        treasure: {
+          ...data.treasure,
+          manual: data.treasure.manual.filter((w) => w.id !== action.id),
+        },
+      }
+
+    case 'mark-notified':
+      return {
+        ...data,
+        treasure: {
+          ...data.treasure,
+          notified: rememberNotified(data.treasure.notified, action.keys),
+        },
+      }
+
     case 'replace':
       return action.data
 
@@ -199,6 +255,8 @@ interface TrackerApi {
   data: AppData
   settings: Settings
   desktopSettings: DesktopSettings
+  treasureSettings: TreasureSettings
+  treasure: TreasureCache
   activeSession: Session | null
   count: number
   paused: boolean
@@ -225,6 +283,11 @@ interface TrackerApi {
   deleteAllSessions: () => void
   updateSettings: (patch: Partial<Settings>) => void
   updateDesktopSettings: (patch: Partial<DesktopSettings>) => void
+  updateTreasureSettings: (patch: Partial<TreasureSettings>) => void
+  updateTreasureCache: (patch: Partial<TreasureCache>) => void
+  addManualWindow: (window: TreasureWindow) => void
+  removeManualWindow: (id: string) => void
+  markNotified: (keys: string[]) => void
   replaceData: (data: AppData) => void
   mergeImport: (data: AppData) => void
   resetEverything: () => void
@@ -320,7 +383,7 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
 
   const addChest = useCallback<TrackerApi['addChest']>(() => {
     if (isCurrentlyPaused()) return 'paused'
-    dispatch({ type: 'add-chest', ts: Date.now() })
+    dispatch({ type: 'add-chest', ts: Date.now(), th: activeTreasureWindow() })
     return 'counted'
   }, [isCurrentlyPaused])
 
@@ -355,6 +418,8 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
       data,
       settings: data.settings,
       desktopSettings: data.settings.desktop,
+      treasureSettings: data.settings.treasure,
+      treasure: data.treasure,
       activeSession,
       count,
       paused,
@@ -380,6 +445,11 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
       deleteAllSessions: () => dispatch({ type: 'delete-all-sessions' }),
       updateSettings: (patch) => dispatch({ type: 'update-settings', patch }),
       updateDesktopSettings: (patch) => dispatch({ type: 'update-desktop-settings', patch }),
+      updateTreasureSettings: (patch) => dispatch({ type: 'update-treasure-settings', patch }),
+      updateTreasureCache: (patch) => dispatch({ type: 'update-treasure-cache', patch }),
+      addManualWindow: (window) => dispatch({ type: 'add-manual-window', window }),
+      removeManualWindow: (id) => dispatch({ type: 'remove-manual-window', id }),
+      markNotified: (keys) => dispatch({ type: 'mark-notified', keys }),
       replaceData: (next) => dispatch({ type: 'replace', data: next }),
       mergeImport: (next) => dispatch({ type: 'merge', data: next }),
       resetEverything,

@@ -1,0 +1,88 @@
+{
+  "app": "fortnite-chest-tracker",
+  "kind": "treasure-hours",
+  "version": 1,
+  "generatedAt": "2026-11-12T00:00:00Z",
+  "notice": "Only windows that were actually announced are listed. Predicted future Saturdays are deliberately left out: Epic publishes exact times a few days ahead, and this app will not show a date nobody announced. Edit this file (or add a window by hand in the app) as new announcements land.",
+  "baseOdds": {
+    "perChest": 137500,
+    "confirmed": true,
+    "sources": [
+      {
+        "label": "Epic Games (@FortniteStatus), 7 November 2026",
+        "url": "https://www.videogameschronicle.com/news/fortnite-officially-confirms-pirate-shop-access-token-drop-rate-as-players-hunt-for-item-which-makes-entire-shop-free/",
+        "verifiedAt": "2026-11-12T00:00:00Z"
+      }
+    ]
+  },
+  "windows": [
+    {
+      "id": "th-2026-11-07-afternoon",
+      "startsAt": "2026-11-07T19:00:00Z",
+      "endsAt": "2026-11-07T21:00:00Z",
+      "status": "confirmed",
+      "label": "Treasure Hours — afternoon block",
+      "multiplier": 1.5,
+      "multiplierConfirmed": true,
+      "boosts": [],
+      "sources": [
+        {
+          "label": "Epic Games (@FortniteStatus), 7 November 2026",
+          "url": "https://www.videogameschronicle.com/news/fortnite-officially-confirms-pirate-shop-access-token-drop-rate-as-players-hunt-for-item-which-makes-entire-shop-free/",
+          "verifiedAt": "2026-11-12T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "th-2026-11-07-evening",
+      "startsAt": "2026-11-08T02:00:00Z",
+      "endsAt": "2026-11-08T04:00:00Z",
+      "status": "confirmed",
+      "label": "Treasure Hours — evening block",
+      "multiplier": 2,
+      "multiplierConfirmed": true,
+      "boosts": [{ "label": "Gold outfit", "multiplier": 10 }],
+      "sources": [
+        {
+          "label": "Epic Games (@FortniteStatus), 7 November 2026",
+          "url": "https://www.gamingbible.com/news/fortnite-treasure-hours-revealed-buffs-drop-rate-pirate-shop-token-012614-20261109",
+          "verifiedAt": "2026-11-12T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "th-2026-11-14-afternoon",
+      "startsAt": "2026-11-14T19:00:00Z",
+      "endsAt": "2026-11-14T21:00:00Z",
+      "status": "reported",
+      "label": "Treasure Hours — afternoon block",
+      "multiplier": null,
+      "multiplierConfirmed": false,
+      "boosts": [],
+      "sources": [
+        {
+          "label": "Epic confirmed the date; these times are reported by trackers, not by Epic",
+          "url": "https://www.vice.com/en/article/fortnite-treasure-hours-schedule/",
+          "verifiedAt": "2026-11-12T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "th-2026-11-14-evening",
+      "startsAt": "2026-11-15T02:00:00Z",
+      "endsAt": "2026-11-15T04:00:00Z",
+      "status": "reported",
+      "label": "Treasure Hours — evening block",
+      "multiplier": null,
+      "multiplierConfirmed": false,
+      "boosts": [],
+      "sources": [
+        {
+          "label": "Epic confirmed the date; these times are reported by trackers, not by Epic",
+          "url": "https://www.vice.com/en/article/fortnite-treasure-hours-schedule/",
+          "verifiedAt": "2026-11-12T00:00:00Z"
+        }
+      ]
+    }
+  ]
+}

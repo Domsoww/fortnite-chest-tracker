@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   web:
-    name: Web build (type-check + Vite)
+    name: Web build (type-check + tests + Vite)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,6 +22,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      # Time zones, schedule state transitions, reminder de-duplication and
+      # schema migrations. Runs under TZ=UTC, set by the Vitest config.
+      - run: npm test
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:

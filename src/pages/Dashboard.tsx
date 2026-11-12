@@ -7,6 +7,7 @@ import { EmptyState } from '../components/EmptyState'
 import { ProgressRing } from '../components/ProgressRing'
 import { PageHeader } from '../components/PageHeader'
 import { GamingModeCard } from '../components/GamingModeCard'
+import { TreasureBanner } from '../components/TreasureBanner'
 import { isDesktop } from '../desktop/platform'
 import type { ConfirmOptions } from '../components/ConfirmDialog'
 import { useTracker } from '../state/tracker'
@@ -111,6 +112,8 @@ export function Dashboard({
               </div>
             </div>
           </Card>
+
+          <TreasureBanner onOpen={() => onNavigate('treasure')} />
 
           {isDesktop ? <GamingModeCard onOpenSettings={() => onNavigate('settings')} /> : null}
 

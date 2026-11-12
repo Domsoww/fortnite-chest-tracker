@@ -5,6 +5,7 @@ import { AppShell } from './components/AppShell'
 import { Toaster } from './components/Toaster'
 import { Logo } from './components/Logo'
 import { Dashboard } from './pages/Dashboard'
+import { Treasure } from './pages/Treasure'
 import { History } from './pages/History'
 import { Settings } from './pages/Settings'
 import { useHashRoute } from './lib/useHashRoute'
@@ -55,6 +56,7 @@ export function App() {
       <AppShell route={route} onNavigate={navigate}>
         <div key={route} className="animate-slide-up">
           {route === 'dashboard' ? <Dashboard confirm={confirm} onNavigate={navigate} /> : null}
+          {route === 'treasure' ? <Treasure confirm={confirm} /> : null}
           {route === 'history' ? <History confirm={confirm} /> : null}
           {route === 'statistics' ? (
             <Suspense fallback={<ChartsLoading />}>
